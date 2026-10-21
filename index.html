@@ -62,6 +62,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:26px;heigh
 input[type=range]::-moz-range-thumb{width:22px;height:22px;border-radius:50%;background:var(--accent);border:3px solid var(--bg)}
 .presets{display:flex;gap:8px;overflow-x:auto;padding-bottom:2px;margin-top:12px}
 .presets button{flex:none;padding:8px 12px;font-size:13px;border-radius:99px}
+.presets button.sel{border-color:var(--accent);color:var(--accent)}
 .actions{display:grid;grid-template-columns:1fr;gap:10px}
 .actions .row button{padding:14px 8px}
 .go{font-size:20px;padding:18px}
@@ -311,8 +312,8 @@ function sessionCmd(action, extra=0, override={}){
   if (!S) return;
   const unit = S.unit==='C' ? UNIT_C : UNIT_F;
   let fT=S.flowerTemp, cT=S.concTemp, fD=S.flowerDur, cD=S.concDur, fR=S.flowerRank, cR=S.concRank;
-  if (override.mode==='flower'){ fT=override.temp; fD=override.dur; fR=0; }
-  if (override.mode==='concentrate'){ cT=override.temp; cD=override.dur; cR=0; }
+  if (override.mode==='flower'){ fT=override.temp; fD=override.dur; fR=matchRank('flower',fT,fD); }
+  if (override.mode==='concentrate'){ cT=override.temp; cD=override.dur; cR=matchRank('concentrate',cT,cD); }
   return send([0xCC,0x10,hi(fT),lo(fT),hi(cT),lo(cT),unit,hi(fD),lo(fD),hi(cD),lo(cD),fR,cR,action,extra,0xCC]);
 }
 function settingsCmd({powerOff=false, unit, lock, vibration, powerSave}={}){
@@ -335,8 +336,21 @@ function limits(m){
 function curSet(m){
   if (pending && pending.mode===m) return pending;
   if (!S) return { temp: limits(m).t[0], dur: limits(m).d[0] };
-  return m==='flower' ? {temp:S.flowerTemp, dur:S.flowerDur} : {temp:S.concTemp, dur:S.concDur};
+  return curDevice(m);
 }
+/* Device presets: 5 per mode & unit, sent after the clock sync.
+   Header 0x55 flower°F, 0x33 conc°F, 0x44 flower°C, 0x22 conc°C; then 5 × [tempHi tempLo dur]. */
+const PRESET_HDR = {0x55:'flowerF', 0x33:'concentrateF', 0x44:'flowerC', 0x22:'concentrateC'};
+const PRESETS = {};
+function decodePresets(b){
+  const key = PRESET_HDR[b[0]];
+  if (!key || b[1]!==0x12 || b.length<18 || b[17]!==b[0]) return false;
+  PRESETS[key] = [0,1,2,3,4].map(i => ({temp:(b[2+i*3]<<8)|b[3+i*3], dur:b[4+i*3]}));
+  return true;
+}
+const presetsFor = m => (S && PRESETS[m+S.unit]) || [];
+const rankOf = m => m==='flower' ? S.flowerRank : S.concRank;
+function matchRank(m,temp,dur){ return presetsFor(m).findIndex(p => p.temp===temp && p.dur===dur) + 1; }
 
 function renderControls(){
   const L = limits(mode), v = curSet(mode), u = S ? S.unit : 'F';
@@ -347,37 +361,36 @@ function renderControls(){
   if (document.activeElement!==dr) dr.value=v.dur;
   $('tVal').textContent = `${v.temp}°${u}`;
   $('dVal').textContent = fmtTime(+v.dur);
-  // quick presets (user-saved), per mode & unit
-  const q = store.get(`quick.${mode}.${u}`, null) || defaultQuick(mode,u);
-  const html = q.map((p,i)=>`<button class="ghost" data-q="${i}">${p.temp}° · ${fmtTime(p.dur)}</button>`).join('')
+  // device presets (P1–P5) then the user's saved ones
+  const r = S ? matchRank(mode, +v.temp, +v.dur) : 0;
+  const q = store.get(`quick.${mode}.${u}`, []);
+  const html = presetsFor(mode).map((p,i)=>`<button class="ghost${r===i+1?' sel':''}" data-p="${i}">P${i+1} · ${p.temp}° · ${fmtTime(p.dur)}</button>`).join('')
+    + q.map((p,i)=>`<button class="ghost" data-q="${i}">${p.temp}° · ${fmtTime(p.dur)}</button>`).join('')
     + `<button class="ghost" data-save="1">＋ Save current</button>`;
   // only rebuild when changed, so taps aren't lost to a re-render mid-press
   if ($('quick').dataset.html !== html){ $('quick').innerHTML = html; $('quick').dataset.html = html; }
-}
-function defaultQuick(m,u){
-  const base = m==='concentrate' ? [[450,45],[500,50],[550,40]] : [[350,180],[380,180],[410,150]];
-  return base.map(([f,d])=>({temp:u==='C'?f2c(f):f, dur:d}));
 }
 
 function render(){
   if (!S) return;
   const heating = S.remaining>0;
-  const tgt = S.atomizer==='flower' ? S.flowerTemp : S.concTemp;
+  const active = curDevice(S.atomizer==='none' ? mode : S.atomizer), tgt = active.temp;
   const ready = heating && S.temp >= tgt - (S.unit==='C'?3:5);
-  $('curTemp').textContent = S.temp;
+  // live reading while heating; the set temperature while idle
+  $('curTemp').textContent = heating ? S.temp : curSet(mode).temp;
   $('unitLbl').textContent = '°'+S.unit;
   const st = $('state');
   st.textContent = heating ? (ready ? 'Ready' : 'Heating') : (S.atomizer==='none' ? 'No atomizer' : 'Idle');
   st.className = 'state' + (heating ? (ready?' ready':' hot') : '');
-  $('subline').textContent = heating ? `Target ${tgt}°${S.unit} · ${fmtTime(S.remaining)} left` : `Set ${tgt}°${S.unit}`;
+  $('subline').textContent = heating ? `Target ${tgt}°${S.unit} · ${fmtTime(S.remaining)} left` : `Set · ${fmtTime(+curSet(mode).dur)}`;
   $('dial').classList.toggle('heating', heating && !ready);
   // dial: temp progress toward target while heating up, time remaining once ready, temp vs max when idle
   const maxT = limits(S.atomizer==='none'?mode:S.atomizer).t[1];
-  let frac = heating ? (ready ? S.remaining / (S.atomizer==='flower'?S.flowerDur:S.concDur) : S.temp/tgt) : Math.min(S.temp/maxT,1);
+  let frac = heating ? (ready ? S.remaining / active.dur : S.temp/tgt) : Math.min(curSet(mode).temp/maxT,1);
   $('bar').style.strokeDashoffset = 405.3 * (1 - Math.max(0,Math.min(1,frac)));
   $('stTime').textContent = fmtTime(S.remaining);
   $('stMode').textContent = S.atomizer==='none' ? 'None' : S.atomizer==='flower' ? 'Flower' : 'Conc.';
-  $('stSleep').textContent = S.locked ? 'Locked' : S.sleep>0 ? `Sleep ${Math.round(S.sleep*2.5)}s` : S.charging ? 'Charging' : 'Awake';
+  $('stSleep').textContent = S.locked ? 'Locked' : S.sleep>0 && S.sleep*2.5<=60 ? `Sleep in ${Math.round(S.sleep*2.5)}s` : S.charging ? 'Charging' : 'Awake';
   $('bat').textContent = S.battery+'%'; $('batIcon').textContent = S.charging ? '⚡' : '🔋';
   $('setBat').textContent = S.battery+'%' + (S.charging?' · charging':'');
   $('tgLock').classList.toggle('on', S.locked);
@@ -393,6 +406,7 @@ function render(){
 
 let firstFrame = true;
 function onFrame(b){
+  if (decodePresets(b)){ if (S) render(); return; }
   const s = decodeStatus(b);
   if (!s) return;
   const unitChanged = S && S.unit!==s.unit;
@@ -405,7 +419,12 @@ function onFrame(b){
   }
   render();
 }
-function curDevice(m){ return m==='flower' ? {temp:S.flowerTemp,dur:S.flowerDur} : {temp:S.concTemp,dur:S.concDur}; }
+// what the device will actually run for a mode: the active preset slot, or the custom slot (rank 0)
+function curDevice(m){
+  const p = presetsFor(m)[rankOf(m)-1];
+  if (p) return {...p};
+  return m==='flower' ? {temp:S.flowerTemp,dur:S.flowerDur} : {temp:S.concTemp,dur:S.concDur};
+}
 
 /* edits: update locally at once, push to device (debounced) so its screen matches */
 let pushT;
@@ -421,7 +440,7 @@ function edit(temp, dur){
 
 /* ---------- Wire up ---------- */
 $('btnConnect').onclick = connect;
-$('btnDemo').onclick = () => { demo = new Demo(); showApp(); setLink('Demo', true); $('devName').textContent='DEMO'; };
+$('btnDemo').onclick = () => { demo = new Demo(); showApp(); setLink('Demo', true); $('devName').textContent='DEMO'; syncClock(); };
 document.querySelectorAll('#modeSeg button').forEach(b => b.onclick = () => { mode=b.dataset.mode; pending=null; renderControls(); });
 $('tRange').oninput = e => edit(+e.target.value, curSet(mode).dur);
 $('dRange').oninput = e => edit(curSet(mode).temp, +e.target.value);
@@ -434,8 +453,9 @@ document.querySelectorAll('[data-step]').forEach(b => {
 });
 $('quick').onclick = e => {
   const u = S?S.unit:'F', key=`quick.${mode}.${u}`;
-  const q = store.get(key,null) || defaultQuick(mode,u);
-  if (e.target.dataset.q!=null){ const p=q[+e.target.dataset.q]; edit(p.temp,p.dur); }
+  const q = store.get(key,[]);
+  if (e.target.dataset.p!=null){ const p=presetsFor(mode)[+e.target.dataset.p]; edit(p.temp,p.dur); }
+  else if (e.target.dataset.q!=null){ const p=q[+e.target.dataset.q]; edit(p.temp,p.dur); }
   else if (e.target.dataset.save){ const v=curSet(mode); q.push({temp:+v.temp,dur:+v.dur}); store.set(key,q.slice(-6)); renderControls(); toast('Saved'); }
 };
 $('btnStart').onclick = () => {
@@ -470,10 +490,17 @@ class Demo{
   handle(b){
     const s=this.s;
     if (b[0]===0xCC){
-      s.fT=(b[2]<<8)|b[3]; s.cT=(b[4]<<8)|b[5]; s.fD=(b[7]<<8)|b[8]; s.cD=(b[9]<<8)|b[10];
+      s.fT=(b[2]<<8)|b[3]; s.cT=(b[4]<<8)|b[5]; s.fD=(b[7]<<8)|b[8]; s.cD=(b[9]<<8)|b[10]; s.fR=b[11]; s.cR=b[12];
       if (b[13]===ACT_START){ s.phase=1; s.rem = s.atom===0xA0?s.fD:s.cD; }
       if (b[13]===ACT_CANCEL){ s.phase=0; s.rem=0; }
       if (b[13]===ACT_ADD && s.phase) s.rem=Math.min(255,s.rem+b[14]);
+    }
+    if (b[0]===0xDD){
+      const send = (h, list) => onFrame(new Uint8Array([h,0x12,...list.flatMap(([t,d])=>[hi(t),lo(t),d]),h]));
+      send(0x55,[[330,240],[350,240],[370,240],[390,240],[410,240]]);
+      send(0x33,[[465,95],[490,80],[525,95],[440,90],[580,45]]);
+      send(0x44,[[166,240],[177,240],[188,240],[199,240],[210,240]]);
+      send(0x22,[[240,95],[254,80],[273,95],[226,90],[304,45]]);
     }
     if (b[0]===0x11){
       if (b[3]!==s.unit){ const toC=b[3]===UNIT_C, cv=toC?f2c:c2f; s.fT=cv(s.fT); s.cT=cv(s.cT); s.temp=cv(s.temp); s.unit=b[3]; }

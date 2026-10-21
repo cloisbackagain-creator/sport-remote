@@ -24,6 +24,19 @@ IDLE_EXIT_SECONDS = 30  # quit once no browser tab has been open this long
 HERE = Path(__file__).resolve().parent
 
 
+def is_carta(d, ad):
+    """Match a CARTA Sport even if the user renamed it.
+
+    It advertises Device Information (180A) plus manufacturer data like b'{S3TG|<serial>...}',
+    where S3xx is the Sport model code (D9xx = CARTA 2, E5xx = AERIS).
+    """
+    if SVC in [u.lower() for u in ad.service_uuids]:
+        return True
+    if "carta" in (d.name or ad.local_name or "").lower():
+        return True
+    return any(v[:3] in (b"{S3", b"{D9", b"{E5") for v in ad.manufacturer_data.values())
+
+
 class Bridge:
     def __init__(self):
         self.clients: set[web.WebSocketResponse] = set()
@@ -53,12 +66,7 @@ class Bridge:
     # ---- BLE ----
     async def find_device(self):
         await self.status("scanning")
-        found = await BleakScanner.find_device_by_filter(
-            lambda d, ad: SVC in [u.lower() for u in ad.service_uuids]
-            or (d.name or ad.local_name or "").upper().startswith("CARTA"),
-            timeout=12.0,
-        )
-        return found
+        return await BleakScanner.find_device_by_filter(is_carta, timeout=12.0)
 
     async def connect_loop(self):
         attempt = 0
