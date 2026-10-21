@@ -59,7 +59,19 @@ header h1{font-size:16px;margin:0;flex:1;white-space:nowrap;overflow:hidden;text
 .hero .time{font-size:22px;font-weight:700;line-height:1}
 .state{margin-top:5px;font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--dim)}
 .state.hot{color:var(--heat)}.state.ready{color:var(--accent)}
-.lastline{font-size:12px;color:var(--dim);min-height:16px}
+.curve{display:block;width:100%;height:84px;touch-action:none}
+.curve.hidden{display:none}
+.curve .grid{stroke:var(--line);stroke-width:1}
+.curve .tgt{stroke:var(--dim);stroke-width:1;stroke-dasharray:3 4}
+.curve .line{fill:none;stroke:var(--accent);stroke-width:2;stroke-linejoin:round;stroke-linecap:round}
+.curve .heat{fill:none;stroke:var(--heat);stroke-width:2;stroke-linejoin:round;stroke-linecap:round}
+.curve .axis{fill:var(--dim);font-size:10px;font-variant-numeric:tabular-nums}
+.curve .rdy{stroke:var(--accent);stroke-width:1;stroke-dasharray:2 3;opacity:.7}
+.curve .mark{fill:var(--accent);stroke:var(--card);stroke-width:2}
+.curve .xh{stroke:var(--dim);stroke-width:1}
+.curve.past .line,.curve.past .heat{stroke:var(--dim)}
+.curve.past .mark{fill:var(--dim)}
+.lastline{font-size:12px;color:var(--dim);min-height:16px;display:flex;justify-content:space-between;gap:8px}
 .lastline b{color:var(--text);font-weight:600}
 .prog{height:4px;border-radius:4px;background:var(--card2);overflow:hidden}
 .prog i{display:block;height:100%;width:0;background:var(--accent);transition:width .5s,background .4s}
@@ -161,6 +173,7 @@ input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;bac
   .hero .big{font-size:40px}
   .go{padding:12px}
   .ptiles button{padding:5px 2px 4px}.ptiles .pt{font-size:15px}
+  .curve{height:60px}
 }
 /* sliders are a convenience; drop them before anything scrolls */
 @media (max-height:760px){
@@ -201,7 +214,8 @@ input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;bac
           <div id="state" class="state">Idle</div>
         </div>
       </div>
-      <div class="lastline num" id="lastLine"></div>
+      <svg class="curve hidden" id="curve" role="img" aria-label="Heating curve"></svg>
+      <div class="lastline num"><span id="lastLine"></span><span id="curveTip"></span></div>
       <div class="prog" id="prog"><i id="progBar"></i></div>
       <div class="facts"><span id="factAtom">--</span><span id="factStatus">--</span></div>
     </div>
@@ -731,10 +745,14 @@ function recordCurve(){
     const retry = !!(fixing && now - fixing.at < 8000);
     if (retry) fixing = null;
     curve = { start: now, target: curDevice(m).temp, unit: S.unit, done: false, mode: m, dur: curDevice(m).dur,
-              total: S.remaining, startRem: S.remaining, readyAt: null, retry, diag: diagOn ? [] : null, analytics: [] };
+              total: S.remaining, startRem: S.remaining, readyAt: null, retry, v: 2, samples: [], diag: diagOn ? [] : null, analytics: [] };
   }
   if (!curve || curve.done) return;
   curve.total = Math.max(curve.total || 0, S.remaining);   // +10 s extends it
+  if (heating){
+    const t = (now - curve.start)/1000, last = curve.samples[curve.samples.length-1];
+    if (!last || t - last[0] >= 0.3) curve.samples.push([+t.toFixed(1), S.temp]);
+  }
   if (heating && curve.readyAt==null){
     if (S.remaining < curve.startRem){
       curve.readyAt = (now - curve.start)/1000;
@@ -759,14 +777,68 @@ function recordCurve(){
     }, 1300);
     if (curve.diag) saveDiag(curve);
     const { diag, analytics, ...light } = curve;   // keep the stored copy small
-    store.set('lastCurve', light);
+    if (!curve.early) store.set('lastCurve', light);
   }
 }
+/* Heating curve: live coil readings during heat-up (orange), then the held target once the
+   Carta is ready (teal), with a marker where the countdown started. Last session stays dimmed. */
+let hoverT = null;
+const CPAD = { l: 34, r: 6, t: 6, b: 14 };
+function curveSpan(c){
+  const last = c.samples[c.samples.length-1][0];
+  if (c.done) return Math.max(last, 5);
+  // expected end: heat-up so far + remaining countdown (countdown holds until ready)
+  return Math.max(last + (S ? S.remaining : 0), 20);
+}
+function drawCurve(){
+  const svg = $('curve'), c = curve;
+  const ok = c && c.v===2 && c.samples && c.samples.length > 1 && (!S || c.unit===S.unit);
+  svg.classList.toggle('hidden', !ok);
+  if (!ok){ $('curveTip').textContent = ''; return; }
+  svg.classList.toggle('past', !!c.done);
+  const W = svg.clientWidth || 300, H = svg.clientHeight || 84, base = H - CPAD.b, pts = c.samples;
+  const tMax = curveSpan(c), vals = pts.map(p=>p[1]);
+  const lo = Math.min(...vals, c.target), hiV = Math.max(...vals, c.target);
+  const span = Math.max(hiV - lo, 20), yLo = lo - span*0.06, yHi = hiV + span*0.12;
+  const X = t => CPAD.l + (W-CPAD.l-CPAD.r) * Math.min(t, tMax) / tMax;
+  const Y = v => CPAD.t + (base-CPAD.t) * (1 - (v - yLo)/(yHi - yLo));
+  const path = arr => arr.map((p,i)=>`${i?'L':'M'}${X(p[0]).toFixed(1)},${Y(p[1]).toFixed(1)}`).join('');
+  const r = c.readyAt, warm = r==null ? pts : pts.filter(p=>p[0] <= r), held = r==null ? [] : pts.filter(p=>p[0] >= r);
+  if (r!=null && warm.length && held.length) held.unshift(warm[warm.length-1]);
+  let out = `<line class="grid" x1="${CPAD.l}" x2="${W-CPAD.r}" y1="${base}" y2="${base}"/>
+    <line class="tgt" x1="${CPAD.l}" x2="${W-CPAD.r}" y1="${Y(c.target)}" y2="${Y(c.target)}"/>
+    <text class="axis" x="${CPAD.l-5}" y="${Y(c.target)+3}" text-anchor="end">${c.target}°</text>
+    <text class="axis" x="${CPAD.l-5}" y="${Math.min(base-2, Y(vals[0])+3)}" text-anchor="end">${vals[0]}°</text>
+    <text class="axis" x="${CPAD.l}" y="${H-2}">0:00</text>
+    <text class="axis" x="${W-CPAD.r}" y="${H-2}" text-anchor="end">${fmtTime(Math.round(tMax))}</text>
+    <path class="heat" d="${path(warm)}"/>${held.length > 1 ? `<path class="line" d="${path(held)}"/>` : ''}`;
+  if (r!=null) out += `<line class="rdy" x1="${X(r)}" x2="${X(r)}" y1="${CPAD.t}" y2="${base}"/><circle class="mark" cx="${X(r)}" cy="${Y(c.target)}" r="4"/>`;
+  let tip = '';
+  if (hoverT!=null){
+    const p = pts.reduce((a,b)=>Math.abs(b[0]-hoverT)<Math.abs(a[0]-hoverT)?b:a);
+    out += `<line class="xh" x1="${X(p[0])}" x2="${X(p[0])}" y1="${CPAD.t}" y2="${base}"/><circle class="mark" cx="${X(p[0])}" cy="${Y(p[1])}" r="4"/>`;
+    tip = `<b>${p[1]}°</b> at ${fmtTime(Math.round(p[0]))}`;
+  }
+  svg.innerHTML = out;
+  $('curveTip').innerHTML = tip || (r!=null ? `heat-up <b>${fmtTime(Math.round(r))}</b>` : '');
+}
+function curveHover(e){
+  if (!curve || curve.v!==2 || !curve.samples || curve.samples.length<2) return;
+  const rc = $('curve').getBoundingClientRect(), tMax = curveSpan(curve);
+  hoverT = Math.max(0, Math.min(tMax, (e.clientX - rc.left - CPAD.l) / (rc.width - CPAD.l - CPAD.r) * tMax));
+  drawCurve();
+}
+$('curve').addEventListener('pointermove', curveHover);
+$('curve').addEventListener('pointerdown', curveHover);
+$('curve').addEventListener('pointerleave', () => { hoverT = null; drawCurve(); });
+window.addEventListener('resize', () => S && drawCurve());
+
 function ago(ms){
   const m = Math.round(ms/60000);
   return m < 1 ? 'just now' : m < 60 ? `${m} min ago` : m < 1440 ? `${Math.round(m/60)} h ago` : `${Math.round(m/1440)} d ago`;
 }
 function renderLastLine(heating){
+  drawCurve();
   const c = curve, el = $('lastLine');
   if (heating && c && !c.done && c.readyAt==null){ el.innerHTML = `Heating for ${fmtTime(Math.round((Date.now()-c.start)/1000))} · to <b>${c.target}°</b>`; return; }
   if (heating && c && !c.done){ el.innerHTML = `Started ${ago(Date.now()-c.start)} · ends in <b>${fmtTime(S.remaining)}</b>`; return; }
