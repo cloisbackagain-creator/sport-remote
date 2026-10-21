@@ -99,6 +99,34 @@ input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;bac
 
 .actions{display:grid;grid-template-columns:1fr;gap:8px;margin-top:auto}
 .actions .row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.actions .row3{grid-template-columns:1fr 1fr 1fr}
+.actions .row3 button{padding:11px 4px;font-size:14px}
+/* skipped heat-up banner */
+.banner{position:fixed;left:50%;top:calc(env(safe-area-inset-top) + 10px);transform:translate(-50%,-160%);width:min(440px,calc(100vw - 24px));
+  background:#3a2414;border:1px solid #7a4318;color:var(--text);border-radius:14px;padding:12px;z-index:8;transition:transform .3s;font-size:14px}
+.banner.show{transform:translate(-50%,0)}
+.banner b{color:var(--heat)}
+.banner .row{display:flex;gap:8px;margin-top:10px}
+.banner .row button{flex:1;padding:9px}
+/* stats */
+.kv{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;font-size:14px}
+.kv span:nth-child(odd){color:var(--dim)}
+.kv span:nth-child(even){text-align:right;font-variant-numeric:tabular-nums}
+.tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.tile{background:var(--card2);border-radius:12px;padding:10px;text-align:center}
+.tile b{display:block;font-size:20px;font-variant-numeric:tabular-nums}
+.tile span{font-size:11px;color:var(--dim)}
+.sec{margin-top:16px}
+.sec>.lbl{margin-bottom:8px;display:block}
+.bars{display:block;width:100%;height:84px}
+.bars rect{fill:var(--accent)}
+.bars rect.zero{fill:var(--line)}
+.bars rect:hover{fill:#5fe0c8}
+.bars text{fill:var(--dim);font-size:10px}
+.hist{max-height:220px;overflow:auto;border-top:1px solid var(--line)}
+.hist div{display:grid;grid-template-columns:1fr auto auto;gap:10px;padding:8px 0;border-bottom:1px solid var(--line);font-size:13px;font-variant-numeric:tabular-nums}
+.hist div span:first-child{color:var(--dim)}
+.btn-wide{width:100%}
 .go{font-size:18px;padding:15px}
 
 /* sheets (lights / settings) */
@@ -214,8 +242,9 @@ input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;bac
         <button id="btnAdd">+10 s</button>
         <button id="btnCancel" class="danger">Cancel</button>
       </div>
-      <div class="row">
+      <div class="row row3">
         <button id="btnLights" class="ghost">💡 Lights</button>
+        <button id="btnStats" class="ghost">📊 Stats</button>
         <button id="btnSettings" class="ghost">⚙ Settings</button>
       </div>
     </div>
@@ -247,6 +276,36 @@ input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;bac
   <p class="note" id="ledNote" style="margin-top:8px">Changes are saved to the selected preset on the device.</p>
 </section>
 
+<!-- Stats sheet -->
+<section class="sheet" id="statsSheet" aria-label="Stats">
+  <h2>Stats <button class="ghost" data-close>Done</button></h2>
+  <div class="tiles">
+    <div class="tile"><b id="stLife">--</b><span>lifetime sessions</span></div>
+    <div class="tile"><b id="stConc">--</b><span>concentrate</span></div>
+    <div class="tile"><b id="stFlower">--</b><span>flower</span></div>
+  </div>
+  <div class="sec">
+    <span class="lbl">Session history (stored on the device)</span>
+    <button id="btnHistory" class="ghost btn-wide">Load recent sessions</button>
+    <div id="histBox" class="hidden">
+      <div class="tiles" style="margin-bottom:10px">
+        <div class="tile"><b id="hToday">--</b><span>today</span></div>
+        <div class="tile"><b id="hWeek">--</b><span>last 7 days</span></div>
+        <div class="tile"><b id="hMonth">--</b><span>last 30 days</span></div>
+      </div>
+      <div class="kv" id="hSummary" style="margin-bottom:10px"></div>
+      <span class="lbl" style="display:block;margin:6px 0">Sessions per day · last 14 days</span>
+      <svg class="bars" id="hBars" role="img" aria-label="Sessions per day"></svg>
+      <div class="hist" id="hList"></div>
+    </div>
+  </div>
+  <div class="sec">
+    <span class="lbl">Device</span>
+    <div class="kv" id="devKv"></div>
+  </div>
+  <p class="note" style="margin-top:14px">XP on the Focus V leaderboard is earned when the official app syncs this session history. This app only reads it, so nothing is lost. Open the official app now and then to collect your XP.</p>
+</section>
+
 <!-- Settings sheet -->
 <section class="sheet" id="settingsSheet" aria-label="Settings">
   <h2>Settings <button class="ghost" data-close>Done</button></h2>
@@ -257,6 +316,12 @@ input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;bac
   <div class="set"><span>Units</span>
     <div class="seg" id="unitSeg" style="width:130px"><button data-u="F">°F</button><button data-u="C">°C</button></div></div>
   <div class="set"><span>Battery</span><span id="setBat" class="note">--</span></div>
+  <div class="set"><div><div>Recalibrate atomizer</div><div class="note" style="text-align:left">Only when fully cool (off 10+ min). Fixes wrong temperature readings.</div></div>
+    <button id="btnRecal" class="ghost" style="flex:none">Recalibrate</button></div>
+  <div class="set"><div><div>Record diagnostics</div><div class="note" style="text-align:left">Logs raw device data during sessions.</div></div>
+    <button class="toggle" id="tgDiag" aria-label="Record diagnostics"></button></div>
+  <div class="set"><span>Diagnostics log <span class="note" id="diagCount"></span></span>
+    <button id="btnDiagExport" class="ghost" style="flex:none">Export</button></div>
   <div class="set" style="gap:8px">
     <button id="btnDisconnect" class="ghost" style="flex:1">Disconnect</button>
     <button id="btnPowerOff" class="ghost" style="flex:1;color:var(--danger)">Power off</button>
@@ -264,6 +329,10 @@ input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;bac
   <p class="note" style="margin-top:8px">Unofficial controller. Not affiliated with Focus V.</p>
 </section>
 
+<div class="banner" id="skipBanner" role="alert">
+  <div id="skipText"></div>
+  <div class="row"><button class="primary" id="btnRestart">Restart session</button><button class="ghost" id="btnSkipDismiss">Dismiss</button></div>
+</div>
 <div id="toast"></div>
 
 <script>
@@ -365,6 +434,7 @@ function openBridge(){
     if (m.type==='frame') onFrame(new Uint8Array(m.data));
     else if (m.type==='error') toast(m.message);
     else if (m.type==='status') onBridgeStatus(m);
+    else if (m.type==='info'){ Object.assign(INFO, m.data); renderStats(); }
   };
   ws.onclose = () => { setLink('Bridge closed', false); toast('Desktop bridge stopped. Relaunch Sport Remote.'); };
 }
@@ -373,7 +443,7 @@ function onBridgeStatus(m){
   setLink(labels[m.state] || m.state, m.state==='connected');
   $('btnConnect').textContent = m.state==='scanning' ? 'Searching…' : m.state==='connecting' ? 'Connecting…' : 'Connect';
   $('btnConnect').disabled = m.state==='scanning' || m.state==='connecting';
-  if (m.state==='connected'){ $('devName').textContent = m.name || 'CARTA SPORT'; showApp(); syncClock(); }
+  if (m.state==='connected'){ $('devName').textContent = m.name || 'CARTA SPORT'; showApp(); syncClock(); bridge.send(JSON.stringify({type:'info'})); }
   if (m.state==='error') toast(m.message);
 }
 
@@ -384,7 +454,7 @@ async function connect(){
     // Same filters as the official app: the Sport advertises Device Information (180A), not its own service
     dev = await navigator.bluetooth.requestDevice({
       filters:[{services:[SVC]},{services:[DEVICE_INFO]}],
-      optionalServices:[SVC,'battery_service','device_information'],
+      optionalServices:[SVC,'battery_service','device_information','user_data'],
     });
     dev.addEventListener('gattserverdisconnected', onDisconnect);
     wantConnected = true;
@@ -404,6 +474,19 @@ async function openGatt(){
   showApp();
   setLink('Connected', true);
   syncClock();
+  readInfoWeb(server);
+}
+// Web Bluetooth path: standard info characteristics (some, like serial, are blocked by browsers)
+async function readInfoWeb(server){
+  const txt = v => new TextDecoder().decode(v.buffer).replace(/\0/g,'').trim();
+  const tryRead = async (svc, ch, key) => { try{ const sv = await server.getPrimaryService(svc); INFO[key] = txt(await (await sv.getCharacteristic(ch)).readValue()); }catch{} };
+  await tryRead('device_information','model_number_string','model');
+  await tryRead('device_information','software_revision_string','firmware');
+  await tryRead('device_information','hardware_revision_string','hardware');
+  await tryRead('device_information','manufacturer_name_string','manufacturer');
+  await tryRead('user_data',0x2A8A,'userSerial');
+  await tryRead('user_data',0x2A90,'colorCode');
+  renderStats();
 }
 
 async function onDisconnect(){
@@ -564,15 +647,191 @@ function recordCurve(){
   const heating = S.remaining > 0, now = Date.now();
   if (heating && (!curve || curve.done)){
     const m = S.atomizer==='none' ? mode : S.atomizer;
-    curve = { start: now, target: curDevice(m).temp, unit: S.unit, ready: null, samples: [], done: false };
+    const prev = curve;
+    curve = { start: now, target: curDevice(m).temp, unit: S.unit, ready: null, samples: [], done: false,
+              mode: m, dur: curDevice(m).dur, prevEnd: prev && prev.end, diag: diagOn ? [] : null, analytics: [] };
   }
   if (!curve || curve.done) return;
-  if (!heating){ curve.done = true; store.set('lastCurve', curve); return; }
+  if (!heating){
+    curve.done = true; curve.end = now; hideSkip();
+    if (curve.diag) saveDiag(curve);
+    const { diag, analytics, ...light } = curve;   // keep the stored copy small
+    store.set('lastCurve', light); return;
+  }
   const t = (now - curve.start)/1000, last = curve.samples[curve.samples.length-1];
   if (!last || t - last[0] >= 0.3) curve.samples.push([+t.toFixed(1), S.temp]);
   curve.tEnd = Math.max(curve.tEnd || 0, t + S.remaining);
   if (curve.ready==null && S.temp >= curve.target - (S.unit==='C'?3:5)) curve.ready = +t.toFixed(1);
+  checkSkipped(t);
 }
+
+/* Skipped heat-up: the device says it's at temperature within ~2.5 s of starting. A real
+   heat-up from cold takes far longer, so either the coil was still hot or the reading is wrong. */
+function checkSkipped(t){
+  const c = curve;
+  if (c.skipChecked || t > 6) { c.skipChecked = true; return; }
+  const reachedFlag = c.analytics.some(a => a.reached && a.t <= 2.5);
+  if (t <= 2.5 && (c.ready!=null || reachedFlag)){
+    c.skipChecked = true; c.skipped = +t.toFixed(1);
+    const recent = c.prevEnd && (c.start - c.prevEnd) < 120000;
+    $('skipText').innerHTML = `<b>Heat-up skipped.</b> The device said it was ready ${c.skipped < 1 ? 'immediately' : `after ${c.skipped}s`}. `
+      + (recent ? 'It may still be hot from your last session. If it isn\'t, try restarting.' : 'That\'s too fast from cold, so its reading is probably wrong. Try restarting the session.');
+    $('skipBanner').classList.add('show');
+    navigator.vibrate?.([40,60,40]);
+  }
+}
+function hideSkip(){ $('skipBanner').classList.remove('show'); }
+$('btnSkipDismiss').onclick = hideSkip;
+$('btnRestart').onclick = () => {
+  hideSkip(); if (!S || !curve) return;
+  const m = curve.mode, v = { temp: curve.target, dur: curve.dur };
+  sessionCmd(ACT_CANCEL, 0);
+  setTimeout(() => sessionCmd(ACT_START, 0, { mode: m, ...v }), 1500);
+  toast('Restarting session…');
+};
+
+/* ---------- Diagnostics ----------
+   When enabled, every frame received during a session is kept (with its time offset) along with
+   the decoded analytics stream, so odd sessions can be inspected or shared. Last 10 are kept. */
+let diagOn = store.get('diag', false);
+function saveDiag(c){
+  const list = store.get('diagSessions', []);
+  list.push({ start: new Date(c.start).toISOString(), mode: c.mode, target: c.target, unit: c.unit, durationSet: c.dur,
+              readyAt: c.ready, skippedHeatup: c.skipped ?? null, samples: c.samples, analytics: c.analytics, frames: c.diag });
+  store.set('diagSessions', list.slice(-10));
+  renderDiagCount();
+}
+function renderDiagCount(){ $('diagCount').textContent = `(${store.get('diagSessions', []).length} sessions)`; }
+$('tgDiag').onclick = () => { diagOn = !diagOn; store.set('diag', diagOn); $('tgDiag').classList.toggle('on', diagOn);
+  toast(diagOn ? 'Diagnostics will be recorded during sessions' : 'Diagnostics recording off'); };
+$('btnDiagExport').onclick = () => {
+  const list = store.get('diagSessions', []);
+  if (!list.length){ toast('No diagnostics recorded yet'); return; }
+  const blob = new Blob([JSON.stringify({ device: INFO, stats: STATS, sessions: list }, null, 1)], {type:'application/json'});
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = `carta-diagnostics-${new Date().toISOString().slice(0,10)}.json`; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+};
+$('tgDiag').classList.toggle('on', diagOn); renderDiagCount();
+
+/* ---------- Device stats, session log, calibration ---------- */
+const STATS = {};   // counts, ohms, timeouts
+const INFO = {};    // model, firmware, serial...
+const LOGS = new Map();  // session log index -> entry
+let logWant = 0, logT = null, recalT = null;
+const u16 = (b,i) => (b[i]<<8)|b[i+1];
+function decodeExtra(b){
+  // 0xAA: session counters  flower, conc, then today/week/month for each
+  if (b[0]===0xAA && b[1]===0x13 && b[18]===0xAA){
+    Object.assign(STATS, { flower:u16(b,2), conc:u16(b,4), flowerToday:u16(b,6), concToday:u16(b,8),
+      flowerWeek:u16(b,10), concWeek:u16(b,12), flowerMonth:u16(b,14), concMonth:u16(b,16) });
+    return true;
+  }
+  if (b[0]===0xCE && b[1]===7 && b[6]===0xCE){ STATS.flowerOhms=u16(b,2); STATS.concOhms=u16(b,4); return true; }   // atomizer resistance (mΩ)
+  if (b[0]===0xD2 && b[1]===7 && b[6]===0xD2){ STATS.ledTimeout=u16(b,2); STATS.autoOff=u16(b,4); return true; }    // seconds
+  if (b[0]===0xC2 && b[1]===8 && b[7]===0xC2){ onRecal(b); return true; }
+  // 0xFC: one session-log entry; 0xFF: empty slot
+  if (b[0]===0xFC && b.length>=18 && b[17]===0xFC){
+    const k = b[6].toString(16).toUpperCase().padStart(2,'0');
+    LOGS.set(u16(b,2), { index:u16(b,2), mode: k[0]==='A' ? 'flower' : 'concentrate', preset:+k[1]||0,
+      when: Date.UTC(u16(b,7), b[9]-1, b[10], b[11], b[12]), dur:b[13], temp:u16(b,14), unit: b[16]===UNIT_C?'C':'F' });
+    logProgress(); return true;
+  }
+  if (b[0]===0xFF && b[5]===0xFF){ LOGS.set(u16(b,2), null); logProgress(); return true; }
+  // 0xDD from the device: real-time session analytics (temperature, TCR estimate, power, set-temp-reached)
+  if (b[0]===0xDD && b.length>=17 && b[1]===0){
+    if (curve && !curve.done) curve.analytics.push({ t: +((Date.now()-curve.start)/1000).toFixed(1), reached: b[2], temp:u16(b,3), tcr:u16(b,5), power:u16(b,7) });
+    return true;
+  }
+  return false;
+}
+function loadHistory(){
+  if (!S) return;
+  const total = (STATS.flower||0) + (STATS.conc||0);
+  if (!total){ toast('No sessions logged yet'); return; }
+  const from = Math.max(1, total-99);
+  LOGS.clear(); logWant = total-from+1;
+  $('btnHistory').textContent = 'Loading…'; $('btnHistory').disabled = true;
+  // 0xFA = read log entries [from..to]. (0xFD would mark them as synced; never sent, so the official app still earns XP.)
+  clearTimeout(logT); logT = setTimeout(finishHistory, 8000);   // set before sending: replies may arrive synchronously
+  send([0xFA,7,hi(from),lo(from),hi(total),lo(total),0xFA]);
+}
+function logProgress(){
+  if (!logWant) return;
+  $('btnHistory').textContent = `Loading… ${LOGS.size}/${logWant}`;
+  clearTimeout(logT); logT = setTimeout(finishHistory, LOGS.size >= logWant ? 50 : 1500);
+}
+function finishHistory(){
+  logWant = 0; $('btnHistory').disabled = false; $('btnHistory').textContent = 'Reload sessions';
+  renderHistory();
+}
+function renderHistory(){
+  const logs = [...LOGS.values()].filter(Boolean).sort((a,b)=>b.when-a.when);
+  if (!logs.length){ toast('The device didn\'t return any sessions'); return; }
+  $('histBox').classList.remove('hidden');
+  const now = Date.now(), day = 864e5, midnight = new Date().setHours(0,0,0,0);
+  $('hToday').textContent = logs.filter(l=>l.when>=midnight).length;
+  $('hWeek').textContent  = logs.filter(l=>now-l.when < 7*day).length;
+  $('hMonth').textContent = logs.filter(l=>now-l.when < 30*day).length;
+  const avg = a => a.length ? Math.round(a.reduce((x,y)=>x+y,0)/a.length) : '--';
+  const conc = logs.filter(l=>l.mode==='concentrate'), fl = logs.filter(l=>l.mode==='flower');
+  const fav = {}; logs.forEach(l => { const k = l.preset ? `P${l.preset} (${l.mode==='flower'?'flower':'conc.'})` : 'Custom'; fav[k]=(fav[k]||0)+1; });
+  const favTop = Object.entries(fav).sort((a,b)=>b[1]-a[1])[0];
+  $('hSummary').innerHTML = [
+    ['Loaded', `${logs.length} most recent`],
+    conc.length && ['Avg concentrate', `${avg(conc.map(l=>l.temp))}°${conc[0].unit} · ${fmtTime(avg(conc.map(l=>l.dur)))}`],
+    fl.length && ['Avg flower', `${avg(fl.map(l=>l.temp))}°${fl[0].unit} · ${fmtTime(avg(fl.map(l=>l.dur)))}`],
+    ['Most used', favTop ? `${favTop[0]} · ${favTop[1]}×` : '--'],
+  ].filter(Boolean).map(([k,v])=>`<span>${k}</span><span>${v}</span>`).join('');
+  // sessions per day, last 14 days
+  const days = [...Array(14)].map((_,i) => { const d0 = midnight - (13-i)*day; return { d0, n: logs.filter(l=>l.when>=d0 && l.when<d0+day).length }; });
+  const svg = $('hBars'), W = svg.clientWidth || 320, H = 84, padB = 14, max = Math.max(1, ...days.map(d=>d.n));
+  const bw = W/14, fmtD = t => new Date(t).toLocaleDateString(undefined,{month:'short',day:'numeric'});
+  svg.innerHTML = days.map((d,i) => {
+    const h = d.n ? Math.max(4, (H-padB-14)*d.n/max) : 2, x = i*bw + 2, y = H-padB-h;
+    return `<rect class="${d.n?'':'zero'}" x="${x}" y="${y}" width="${bw-4}" height="${h}" rx="3"><title>${fmtD(d.d0)}: ${d.n} session${d.n===1?'':'s'}</title></rect>`
+      + (d.n===max && d.n ? `<text x="${x+(bw-4)/2}" y="${y-3}" text-anchor="middle">${d.n}</text>` : '');
+  }).join('') + `<text x="2" y="${H-2}">${fmtD(days[0].d0)}</text><text x="${W-2}" y="${H-2}" text-anchor="end">Today</text>`;
+  $('hList').innerHTML = logs.map(l => `<div><span>${new Date(l.when).toLocaleString(undefined,{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})}</span>`
+    + `<span>${l.mode==='flower'?'🌿':'💧'} ${l.preset?'P'+l.preset:'Custom'}</span><span>${l.temp}°${l.unit} · ${fmtTime(l.dur)}</span></div>`).join('');
+}
+function renderStats(){
+  const has = v => v!=null && v!=='';
+  if (has(STATS.conc)){
+    $('stLife').textContent = (STATS.conc + STATS.flower).toLocaleString();
+    $('stConc').textContent = STATS.conc.toLocaleString(); $('stFlower').textContent = STATS.flower.toLocaleString();
+  }
+  const ohm = v => has(v) ? (v/1000).toFixed(3)+' Ω' : '--';
+  const mins = v => has(v) ? (v>=60 ? `${Math.round(v/60)} min` : `${v} s`) : '--';
+  const rows = [
+    ['Name', $('devName').textContent], ['Model', INFO.model], ['Color code', INFO.colorCode],
+    ['Serial', INFO.serial || INFO.userSerial], ['Firmware', INFO.firmware], ['Hardware', INFO.hardware],
+    ['Battery', S ? S.battery+'%' : null],
+    ['Concentrate atomizer', ohm(STATS.concOhms)], ['Flower atomizer', ohm(STATS.flowerOhms)],
+    ['Lights auto-off', mins(STATS.ledTimeout)], ['Device auto-off', mins(STATS.autoOff)],
+  ].filter(([,v]) => has(v));
+  $('devKv').innerHTML = rows.map(([k,v])=>`<span>${k}</span><span>${v}</span>`).join('');
+}
+// Recalibration: 0xC1 asks the device to re-measure the cold atomizer resistance; it answers 0xC2 [ok] [flower mΩ] [conc mΩ]
+function recalibrate(){
+  if (!S) return;
+  if (S.remaining>0){ toast('Cancel the session first'); return; }
+  if (!confirm('Recalibrate the atomizer?\n\nOnly do this when the atomizer is completely cool (off for 10+ minutes). Calibrating while warm makes readings worse.')) return;
+  $('btnRecal').disabled = true; $('btnRecal').textContent = 'Working…';
+  send([0xC1,0x06,0x77,0,0,0xC1]);
+  clearTimeout(recalT);
+  recalT = setTimeout(() => { $('btnRecal').disabled=false; $('btnRecal').textContent='Recalibrate'; toast('No response from the device. Try again.'); }, 8000);
+}
+function onRecal(b){
+  STATS.flowerOhms = u16(b,3); STATS.concOhms = u16(b,5); renderStats();
+  if ($('btnRecal').disabled){
+    clearTimeout(recalT); $('btnRecal').disabled=false; $('btnRecal').textContent='Recalibrate';
+    toast(b[2]===1 ? `Recalibrated · ${S.atomizer==='flower'?(STATS.flowerOhms/1000).toFixed(3):(STATS.concOhms/1000).toFixed(3)} Ω` : 'Device did not accept the recalibration');
+  }
+}
+$('btnRecal').onclick = recalibrate;
+$('btnHistory').onclick = loadHistory;
+$('btnStats').onclick = () => { renderStats(); openSheet('statsSheet'); };
 function drawCurve(){
   const svg = $('curve'), W = svg.clientWidth || 300, H = svg.clientHeight || 92;
   const c = curve, pts = c ? c.samples : [];
@@ -632,7 +891,9 @@ window.addEventListener('resize', () => S && drawCurve());
 
 let firstFrame = true;
 function onFrame(b){
+  if (diagOn && curve && !curve.done && curve.diag) curve.diag.push([Date.now()-curve.start, [...b].map(x=>x.toString(16).padStart(2,'0')).join('')]);
   if (decodePresets(b)){ if (S) render(); return; }
+  if (decodeExtra(b)){ if ($('statsSheet').classList.contains('show')) renderStats(); return; }
   if (LED_IN[b[0]]){ if (Date.now() > ledPendingUntil || !LEDS[LED_IN[b[0]]]) decodeLed(b); renderLights(); return; }
   const s = decodeStatus(b);
   if (!s) return;
@@ -758,6 +1019,7 @@ class Demo{
                  3:[0xAA,0x33,[255,0,0],[255,64,0],[255,128,0],[255,192,0],[255,255,0]],
                  4:[0xAA,0x53,[0,66,169],[0,66,169],[0,66,169],[0,66,169],[255,0,255]],
                  5:[0xAA,0x53,[1,227,0],[16,221,0],[33,238,0],[9,234,0],[17,255,64]]};
+    this.total = 1931;
     this.timer = setInterval(()=>this.tick(), 500);
     this.tick();
   }
@@ -772,6 +1034,9 @@ class Demo{
       send(0x44,[[166,240],[177,240],[188,240],[199,240],[210,240]]);
       send(0x22,[[240,95],[254,80],[273,95],[226,90],[304,45]]);
       [1,2,3,4,5].forEach(n=>this.sendLed(n));
+      onFrame(new Uint8Array([0xAA,0x13,0,12,hi(this.total),lo(this.total),0,0,0,3,0,1,0,9,0,2,0,40,0xAA]));
+      onFrame(new Uint8Array([0xCE,7,2,0x80,2,8,0xCE]));
+      onFrame(new Uint8Array([0xD2,7,2,0x58,2,0x58,0xD2]));
     }
     if (b[0]===0xCC){
       s.fT=(b[2]<<8)|b[3]; s.cT=(b[4]<<8)|b[5]; s.fD=(b[7]<<8)|b[8]; s.cD=(b[9]<<8)|b[10]; s.fR=b[11]; s.cR=b[12];
@@ -780,6 +1045,15 @@ class Demo{
       if (b[13]===ACT_CANCEL){ s.phase=0; s.rem=0; }
       if (b[13]===ACT_ADD && s.phase) s.rem=Math.min(255,s.rem+b[14]);
     }
+    if (b[0]===0xFA){   // session log: fake entries spread over the last few weeks
+      const from=u16(b,2), to=u16(b,4);
+      for (let i=from;i<=to;i++){
+        const t = new Date(Date.now() - (to-i)*7.3*3600e3), fl = i%9===0, p = fl ? 1 : [2,2,3,0,2,5][i%6];
+        const temp = fl ? 350 : [465,490,490,525,440,580][i%6];
+        onFrame(new Uint8Array([0xFC,0x12,hi(i),lo(i),0,1,(fl?0xA0:0x60)|p,hi(t.getUTCFullYear()),lo(t.getUTCFullYear()),t.getUTCMonth()+1,t.getUTCDate(),t.getUTCHours(),t.getUTCMinutes(),fl?240:80,hi(temp),lo(temp),0x11,0xFC]));
+      }
+    }
+    if (b[0]===0xC1) setTimeout(()=>onFrame(new Uint8Array([0xC2,8,1,2,0x7c,2,0x05,0xC2])), 1200);
     if (b[0]===0x11){
       if (b[3]!==s.unit){ const toC=b[3]===UNIT_C, cv=toC?f2c:c2f; s.fT=cv(s.fT); s.cT=cv(s.cT); s.temp=cv(s.temp); s.unit=b[3]; }
       s.lock=b[8]?1:0; s.vib=b[9]; s.save=b[10]; s.led=b[7];

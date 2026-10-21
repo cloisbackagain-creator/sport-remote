@@ -20,6 +20,9 @@ HOST, PORT = "127.0.0.1", 8766
 SVC = "1011123e-8535-b5a0-7140-a304d2495cb7"
 NOTIFY = "1011123e-8535-b5a0-7140-a304d2495cb8"
 WRITE = "1011123e-8535-b5a0-7140-a304d2495cb9"
+# Device Information (180A), User Data (181C: the official app keeps serial + color code here), Battery (180F)
+INFO_CHARS = {"model": "2a24", "serial": "2a25", "hardware": "2a27", "firmware": "2a28",
+              "manufacturer": "2a29", "userSerial": "2a8a", "colorCode": "2a90", "battery": "2a19"}
 IDLE_EXIT_SECONDS = 30  # quit once no browser tab has been open this long
 HERE = Path(__file__).resolve().parent
 
@@ -121,6 +124,19 @@ class Bridge:
             self.task.cancel()
             await self.status("disconnected")
 
+    async def info(self):
+        """Read the standard GATT info characteristics (model, serial, firmware...)."""
+        if not (self.client and self.client.is_connected):
+            return
+        out = {}
+        for key, short in INFO_CHARS.items():
+            try:
+                raw = await self.client.read_gatt_char(f"0000{short}-0000-1000-8000-00805f9b34fb")
+                out[key] = raw[0] if key == "battery" else raw.decode("utf-8", "replace").strip("\x00 ")
+            except Exception:
+                pass  # not every unit exposes every characteristic
+        await self.broadcast({"type": "info", "data": out})
+
     async def write(self, data):
         if not (self.client and self.client.is_connected):
             await self.broadcast({"type": "error", "message": "Not connected"})
@@ -151,6 +167,8 @@ async def ws_handler(request):
             await bridge.connect()
         elif t == "disconnect":
             await bridge.disconnect()
+        elif t == "info":
+            await bridge.info()
         elif t == "write" and isinstance(m.get("data"), list):
             await bridge.write([int(b) & 0xFF for b in m["data"]])
     bridge.clients.discard(ws)
