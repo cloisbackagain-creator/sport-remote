@@ -542,12 +542,12 @@ function send(bytes){
   if (bridge) { bridge.send(JSON.stringify({type:'write', data:[...data]})); return Promise.resolve(); }
   if (!chr) { toast('Not connected'); return Promise.reject(new Error('not connected')); }
   // serialize writes: Web Bluetooth rejects overlapping GATT operations
-  // Not every Web Bluetooth browser (e.g. some Bluefy versions) has writeValueWithoutResponse,
-  // so fall back to the long-supported writeValue, and retry once on a transient failure.
-  const write = () => (chr.properties.writeWithoutResponse && typeof chr.writeValueWithoutResponse === 'function')
-    ? chr.writeValueWithoutResponse(data)
-    : typeof chr.writeValueWithResponse === 'function' && !chr.properties.writeWithoutResponse
-      ? chr.writeValueWithResponse(data) : chr.writeValue(data);
+  // Browsers differ: Focus V's V Browser has no chr.properties (the flag sits on the
+  // characteristic itself, which the official app also checks), and some Bluefy versions lack
+  // writeValueWithoutResponse. Fall back to the long-supported writeValue, retry once on failure.
+  const noResp = !!(chr.writeWithoutResponse || (chr.properties && chr.properties.writeWithoutResponse));
+  const write = () => noResp && typeof chr.writeValueWithoutResponse === 'function'
+    ? chr.writeValueWithoutResponse(data) : chr.writeValue(data);
   writeQ = writeQ.catch(()=>{}).then(() => write().catch(() => new Promise(r => setTimeout(r, 150)).then(() => chr.writeValue(data))));
   return writeQ.catch(e => { toast(`Write failed: ${e.name||''} ${e.message}`.trim()); throw e; });
 }
