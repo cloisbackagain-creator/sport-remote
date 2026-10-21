@@ -10,79 +10,116 @@
 <title>Sport Remote</title>
 <style>
 :root{
-  --bg:#0d0f10;--card:#16191b;--card2:#1d2124;--line:#2a2f33;--text:#eef1f2;--dim:#8b959b;
-  --accent:#19c3a5;--accent2:#0f8f79;--heat:#ff8a3d;--danger:#ff5d5d;--radius:20px;
+  --bg:#0d0f10;--card:#16191b;--card2:#1f2326;--line:#2a2f33;--text:#eef1f2;--dim:#8b959b;
+  --accent:#19c3a5;--accent2:#0f8f79;--heat:#ff8a3d;--danger:#ff5d5d;
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-html,body{margin:0;background:var(--bg);color:var(--text);font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
-body{min-height:100dvh;padding:calc(env(safe-area-inset-top) + 12px) 16px calc(env(safe-area-inset-bottom) + 20px)}
-main{max-width:480px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
-header{display:flex;align-items:center;justify-content:space-between;gap:8px}
-h1{font-size:18px;margin:0;letter-spacing:.02em}
-.pill{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--dim);background:var(--card);border:1px solid var(--line);border-radius:99px;padding:6px 10px;white-space:nowrap}
-.dot{width:8px;height:8px;border-radius:50%;background:#555}
-.dot.on{background:var(--accent);box-shadow:0 0 8px var(--accent)}
-.card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:16px}
-button{font:inherit;color:inherit;border:0;cursor:pointer;border-radius:14px;padding:14px 16px;background:var(--card2);transition:transform .08s,background .2s,opacity .2s}
-button:active{transform:scale(.97)}
-button:disabled{opacity:.4;pointer-events:none}
+html,body{margin:0;background:var(--bg);color:var(--text);font:15px/1.35 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+body{height:100dvh;overflow:hidden;padding:calc(env(safe-area-inset-top) + 10px) 14px calc(env(safe-area-inset-bottom) + 12px)}
+main{max-width:460px;height:100%;margin:0 auto;display:flex;flex-direction:column}
+button{font:inherit;color:inherit;border:0;cursor:pointer;border-radius:12px;padding:12px 14px;background:var(--card2);transition:transform .08s,background .2s,opacity .2s;touch-action:manipulation}
+button:active{transform:scale(.96)}
+button:disabled{opacity:.35;pointer-events:none}
 .primary{background:var(--accent);color:#04211c;font-weight:700}
 .danger{background:var(--danger);color:#2a0606;font-weight:700}
 .ghost{background:transparent;border:1px solid var(--line)}
-/* dial */
-.dial{position:relative;display:grid;place-items:center;padding:6px 0;overflow:hidden}
-.dial svg{width:min(78vw,300px);height:auto;transform:rotate(135deg)}
-.dial .track{stroke:var(--card2)}
-.dial .bar{stroke:var(--accent);transition:stroke-dashoffset .5s ease,stroke .4s}
-.dial.heating .bar{stroke:var(--heat)}
-.dial .center{position:absolute;text-align:center}
-.big{font-size:64px;font-weight:700;line-height:1;font-variant-numeric:tabular-nums}
-.big small{font-size:24px;font-weight:600;color:var(--dim);margin-left:2px}
-.state{margin-top:8px;font-size:15px;color:var(--dim);font-weight:600;letter-spacing:.04em;text-transform:uppercase}
-.state.hot{color:var(--heat)}.state.ready{color:var(--accent)}
-.sub{margin-top:4px;font-size:14px;color:var(--dim);font-variant-numeric:tabular-nums}
-/* stats */
-.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
-.stat{background:var(--card2);border-radius:14px;padding:10px;text-align:center}
-.stat b{display:block;font-size:17px;font-variant-numeric:tabular-nums}
-.stat span{font-size:12px;color:var(--dim)}
-/* controls */
-.row{display:flex;gap:10px}
-.row>*{flex:1}
-.seg{display:flex;background:var(--card2);border-radius:14px;padding:4px;gap:4px}
-.seg button{flex:1;padding:10px;background:transparent;border-radius:10px;color:var(--dim);font-weight:600}
-.seg button.sel{background:var(--accent);color:#04211c}
-.ctl{display:flex;flex-direction:column;gap:8px;margin-top:14px}
-.ctl label{display:flex;justify-content:space-between;font-size:14px;color:var(--dim)}
-.ctl label b{color:var(--text);font-variant-numeric:tabular-nums;font-size:16px}
-.stepper{display:flex;align-items:center;gap:10px}
-.stepper button{width:48px;height:44px;padding:0;font-size:22px;flex:none}
-input[type=range]{flex:1;-webkit-appearance:none;appearance:none;height:6px;border-radius:6px;background:var(--card2);outline:none}
-input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:26px;height:26px;border-radius:50%;background:var(--accent);border:3px solid var(--bg)}
-input[type=range]::-moz-range-thumb{width:22px;height:22px;border-radius:50%;background:var(--accent);border:3px solid var(--bg)}
-.presets{display:flex;gap:8px;overflow-x:auto;padding-bottom:2px;margin-top:12px}
-.presets button{flex:none;padding:8px 12px;font-size:13px;border-radius:99px}
-.presets button.sel{border-color:var(--accent);color:var(--accent)}
-.actions{display:grid;grid-template-columns:1fr;gap:10px}
-.actions .row button{padding:14px 8px}
-.go{font-size:20px;padding:18px}
-/* settings */
-details summary{list-style:none;cursor:pointer;display:flex;justify-content:space-between;font-weight:600}
-details summary::-webkit-details-marker{display:none}
-details summary::after{content:"＋";color:var(--dim)}
-details[open] summary::after{content:"－"}
-.set{display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-top:1px solid var(--line);gap:12px}
-.set:first-of-type{margin-top:12px}
-.toggle{width:52px;height:30px;padding:0;border-radius:99px;background:var(--card2);position:relative;flex:none}
-.toggle::after{content:"";position:absolute;top:3px;left:3px;width:24px;height:24px;border-radius:50%;background:#aab;transition:left .2s,background .2s}
-.toggle.on{background:var(--accent2)}.toggle.on::after{left:25px;background:#fff}
-.note{font-size:13px;color:var(--dim);text-align:center;margin:0}
 .hidden{display:none!important}
-#connectView{min-height:70dvh;display:flex;flex-direction:column;justify-content:center;gap:14px;text-align:center}
+.card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:12px}
+.lbl{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
+.num{font-variant-numeric:tabular-nums}
+
+/* connect */
+#connectView{flex:1;display:flex;flex-direction:column;justify-content:center;gap:14px;text-align:center}
 #connectView .logo{font-size:44px;font-weight:800;letter-spacing:.04em}
 #connectView .logo span{color:var(--accent)}
-#toast{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom) + 20px);transform:translateX(-50%) translateY(120px);background:#2b3236;color:var(--text);padding:12px 16px;border-radius:12px;font-size:14px;transition:transform .3s;max-width:90vw;z-index:9}
+.note{font-size:13px;color:var(--dim);text-align:center;margin:0}
+
+/* app */
+#appView{flex:1;display:flex;flex-direction:column;gap:10px;min-height:0}
+header{display:flex;align-items:center;gap:8px}
+header h1{font-size:16px;margin:0;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pill{display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--dim);background:var(--card);border:1px solid var(--line);border-radius:99px;padding:5px 9px;white-space:nowrap}
+.dot{width:7px;height:7px;border-radius:50%;background:#555}
+.dot.on{background:var(--accent);box-shadow:0 0 6px var(--accent)}
+.icon-btn{padding:6px 10px;border-radius:99px;font-size:13px;background:var(--card);border:1px solid var(--line)}
+
+/* hero: live vs set */
+.hero{display:grid;grid-template-columns:1fr 1px 1fr;align-items:center;gap:12px;padding:14px 14px 12px}
+.hero .sep{align-self:stretch;background:var(--line)}
+.hero .big{font-size:clamp(40px,13vw,56px);font-weight:750;line-height:1}
+.hero .big small{font-size:.4em;color:var(--dim);font-weight:600;margin-left:2px}
+.hero .mid{font-size:clamp(30px,9vw,40px);font-weight:700;line-height:1}
+.hero .mid small{font-size:.45em;color:var(--dim);font-weight:600}
+#liveBox .big{transition:color .4s}
+#liveBox.hot .big{color:var(--heat)}
+#liveBox.ready .big{color:var(--accent)}
+.state{margin-top:6px;font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--dim)}
+.state.hot{color:var(--heat)}.state.ready{color:var(--accent)}
+.prog{grid-column:1/-1;height:6px;border-radius:6px;background:var(--card2);overflow:hidden}
+.prog i{display:block;height:100%;width:0;background:var(--accent);transition:width .5s,background .4s}
+.prog.hot i{background:var(--heat)}
+.facts{grid-column:1/-1;display:flex;justify-content:space-between;font-size:12px;color:var(--dim);margin-top:-4px}
+
+/* session controls */
+.seg{display:flex;background:var(--card2);border-radius:12px;padding:3px;gap:3px}
+.seg button{flex:1;padding:8px;background:transparent;border-radius:9px;color:var(--dim);font-weight:650;font-size:14px}
+.seg button.sel{background:var(--accent);color:#04211c}
+.chips{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;margin-top:8px}
+.chips::-webkit-scrollbar{display:none}
+.chips button{flex:none;padding:6px 10px;font-size:12px;border-radius:99px;background:transparent;border:1px solid var(--line);color:var(--dim)}
+.chips button b{color:var(--text);font-weight:650}
+.chips button.sel{border-color:var(--accent);color:var(--accent)}
+.chips button.sel b{color:var(--accent)}
+.adjust{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+.adj{background:var(--card2);border-radius:12px;padding:8px 6px 6px;text-align:center}
+.adj .row{display:flex;align-items:center;justify-content:space-between;gap:4px;margin-top:2px}
+.adj button{width:40px;height:38px;padding:0;font-size:20px;background:var(--card);flex:none}
+.adj .v{font-size:20px;font-weight:700}
+input[type=range]{width:100%;-webkit-appearance:none;appearance:none;height:5px;border-radius:5px;background:var(--line);outline:none;margin:8px 0 4px}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:20px;height:20px;border-radius:50%;background:var(--accent);border:3px solid var(--card2)}
+input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;background:var(--accent);border:3px solid var(--card2)}
+
+.actions{display:grid;grid-template-columns:1fr;gap:8px;margin-top:auto}
+.actions .row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.go{font-size:18px;padding:15px}
+
+/* sheets (lights / settings) */
+.scrim{position:fixed;inset:0;background:rgba(0,0,0,.55);opacity:0;pointer-events:none;transition:opacity .2s;z-index:5}
+.scrim.show{opacity:1;pointer-events:auto}
+.sheet{position:fixed;left:0;right:0;bottom:0;margin:0 auto;max-width:480px;max-height:88dvh;overflow:auto;background:var(--card);border:1px solid var(--line);border-bottom:0;border-radius:20px 20px 0 0;padding:14px 16px calc(env(safe-area-inset-bottom) + 16px);transform:translateY(105%);transition:transform .25s ease;z-index:6}
+.sheet.show{transform:none}
+.sheet h2{font-size:16px;margin:0 0 10px;display:flex;justify-content:space-between;align-items:center}
+.sheet h2 button{padding:4px 10px;font-size:13px}
+.set{display:flex;justify-content:space-between;align-items:center;padding:11px 0;border-top:1px solid var(--line);gap:12px}
+.set.col{flex-direction:column;align-items:stretch;gap:2px}
+.set.col>div{display:flex;justify-content:space-between}
+.toggle{width:50px;height:28px;padding:0;border-radius:99px;background:var(--card2);position:relative;flex:none}
+.toggle::after{content:"";position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:#aab;transition:left .2s,background .2s}
+.toggle.on{background:var(--accent2)}.toggle.on::after{left:25px;background:#fff}
+.swatches{display:flex;gap:10px;justify-content:space-between}
+.swatches label{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;font-size:11px;color:var(--dim)}
+.swatches input{width:100%;max-width:48px;aspect-ratio:1;height:auto;border:2px solid var(--line);border-radius:50%;padding:0;background:none;cursor:pointer;overflow:hidden}
+.swatches input::-webkit-color-swatch-wrapper{padding:0}
+.swatches input::-webkit-color-swatch{border:0;border-radius:50%}
+.swatches input::-moz-color-swatch{border:0;border-radius:50%}
+.ledchips{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}
+.ledchips button{padding:8px 0;display:flex;flex-direction:column;align-items:center;gap:5px;font-size:12px;border:1px solid var(--line);background:transparent}
+.ledchips button.sel{border-color:var(--accent);color:var(--accent)}
+.ledchips .dots{display:flex;gap:2px}
+.ledchips .dots i{width:7px;height:7px;border-radius:50%}
+.pattern{display:grid;grid-template-columns:repeat(5,1fr)}
+.pattern button{font-size:12px;padding:8px 2px}
+
+#toast{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom) + 18px);transform:translateX(-50%) translateY(140px);background:#2b3236;color:var(--text);padding:11px 15px;border-radius:12px;font-size:14px;transition:transform .3s;max-width:90vw;z-index:9}
 #toast.show{transform:translateX(-50%) translateY(0)}
+
+/* short screens: tighten up so nothing scrolls */
+@media (max-height:640px){
+  .hero{padding:10px 12px 9px}
+  .hero .big{font-size:40px}.hero .mid{font-size:30px}
+  .go{padding:12px}
+  input[type=range].opt{display:none}
+}
 </style>
 </head>
 <body>
@@ -93,35 +130,31 @@ details[open] summary::after{content:"－"}
     <p class="note">Power on your CARTA Sport (press the V button 5×), keep it close, then connect.</p>
     <button id="btnConnect" class="primary go">Connect</button>
     <button id="btnDemo" class="ghost">Try demo mode</button>
-    <p id="bleWarn" class="note hidden">This browser can't use Bluetooth. On iPhone, open this page in <b>Bluefy</b> or the Focus V <b>V Browser</b>. On Android/desktop, use Chrome.</p>
+    <p id="bleWarn" class="note hidden">This browser can't use Bluetooth. On iPhone, open this page in <b>Bluefy</b> or the Focus V <b>V Browser</b>. On Android, use Chrome. On a PC, use the Sport Remote desktop launcher.</p>
   </section>
 
   <!-- Control screen -->
-  <section id="appView" class="hidden" style="display:flex;flex-direction:column;gap:14px">
+  <section id="appView" class="hidden">
     <header>
       <h1 id="devName">CARTA SPORT</h1>
-      <div class="row" style="flex:none;gap:6px">
-        <span class="pill"><span id="batIcon">🔋</span><span id="bat">--%</span></span>
-        <span class="pill"><span id="linkDot" class="dot"></span><span id="linkTxt">--</span></span>
-      </div>
+      <span class="pill num"><span id="batIcon">🔋</span><span id="bat">--%</span></span>
+      <span class="pill"><span id="linkDot" class="dot"></span><span id="linkTxt">--</span></span>
     </header>
 
-    <div class="card dial" id="dial">
-      <svg viewBox="0 0 200 200">
-        <circle class="track" cx="100" cy="100" r="86" fill="none" stroke-width="12" stroke-linecap="round" stroke-dasharray="405.3 540.4"/>
-        <circle id="bar" class="bar" cx="100" cy="100" r="86" fill="none" stroke-width="12" stroke-linecap="round" stroke-dasharray="405.3 540.4" stroke-dashoffset="405.3"/>
-      </svg>
-      <div class="center">
-        <div class="big"><span id="curTemp">--</span><small id="unitLbl">°F</small></div>
+    <div class="card hero">
+      <div id="liveBox">
+        <div class="lbl">Live</div>
+        <div class="big num"><span id="liveTemp">--</span><small class="unit">°F</small></div>
         <div id="state" class="state">Idle</div>
-        <div id="subline" class="sub">Target --</div>
       </div>
-    </div>
-
-    <div class="stats">
-      <div class="stat"><b id="stTime">0:00</b><span>Remaining</span></div>
-      <div class="stat"><b id="stMode">--</b><span>Atomizer</span></div>
-      <div class="stat"><b id="stSleep">--</b><span>Status</span></div>
+      <div class="sep"></div>
+      <div>
+        <div class="lbl" id="setLbl">Set</div>
+        <div class="mid num"><span id="setTemp">--</span><small class="unit">°F</small></div>
+        <div class="state num" id="timeLine">--</div>
+      </div>
+      <div class="prog" id="prog"><i id="progBar"></i></div>
+      <div class="facts"><span id="factAtom">--</span><span id="factStatus">--</span></div>
     </div>
 
     <div class="card">
@@ -129,50 +162,85 @@ details[open] summary::after{content:"－"}
         <button data-mode="concentrate">Concentrate</button>
         <button data-mode="flower">Flower</button>
       </div>
-      <div class="ctl">
-        <label>Temperature <b id="tVal">--</b></label>
-        <div class="stepper">
-          <button data-step="t" data-d="-1">−</button>
-          <input id="tRange" type="range">
-          <button data-step="t" data-d="1">+</button>
+      <div class="chips" id="quick"></div>
+      <div class="adjust">
+        <div class="adj">
+          <div class="lbl">Temperature</div>
+          <div class="row">
+            <button data-step="t" data-d="-1" aria-label="Lower temperature">−</button>
+            <span class="v num" id="tVal">--</span>
+            <button data-step="t" data-d="1" aria-label="Raise temperature">+</button>
+          </div>
+          <input id="tRange" class="opt" type="range" aria-label="Temperature">
+        </div>
+        <div class="adj">
+          <div class="lbl">Session</div>
+          <div class="row">
+            <button data-step="d" data-d="-1" aria-label="Shorter session">−</button>
+            <span class="v num" id="dVal">--</span>
+            <button data-step="d" data-d="1" aria-label="Longer session">+</button>
+          </div>
+          <input id="dRange" class="opt" type="range" aria-label="Session length">
         </div>
       </div>
-      <div class="ctl">
-        <label>Session length <b id="dVal">--</b></label>
-        <div class="stepper">
-          <button data-step="d" data-d="-1">−</button>
-          <input id="dRange" type="range">
-          <button data-step="d" data-d="1">+</button>
-        </div>
-      </div>
-      <div class="presets" id="quick"></div>
     </div>
 
     <div class="actions">
       <button id="btnStart" class="primary go">Start heating</button>
-      <div class="row">
+      <div class="row" id="runRow">
         <button id="btnAdd">+10 s</button>
         <button id="btnCancel" class="danger">Cancel</button>
       </div>
-    </div>
-
-    <details class="card">
-      <summary>Device settings</summary>
-      <div class="set"><span>Child lock</span><button class="toggle" id="tgLock"></button></div>
-      <div class="set"><span>Power saving</span><button class="toggle" id="tgSave"></button></div>
-      <div class="set" style="flex-wrap:wrap"><span>Vibration <b id="vibVal" style="font-variant-numeric:tabular-nums">--</b></span>
-        <input id="vibRange" type="range" min="0" max="10" step="1" style="flex-basis:100%"></div>
-      <div class="set"><span>Units</span>
-        <div class="seg" id="unitSeg" style="width:140px"><button data-u="F">°F</button><button data-u="C">°C</button></div></div>
-      <div class="set"><span>Battery</span><span id="setBat" class="note">--</span></div>
-      <div class="set row">
-        <button id="btnDisconnect" class="ghost">Disconnect</button>
-        <button id="btnPowerOff" class="ghost" style="color:var(--danger)">Power off</button>
+      <div class="row">
+        <button id="btnLights" class="ghost">💡 Lights</button>
+        <button id="btnSettings" class="ghost">⚙ Settings</button>
       </div>
-    </details>
-    <p class="note">Unofficial controller. Not affiliated with Focus V.</p>
+    </div>
   </section>
 </main>
+
+<div class="scrim" id="scrim"></div>
+
+<!-- Lights sheet -->
+<section class="sheet" id="lightsSheet" aria-label="Lights">
+  <h2>Lights <button class="ghost" data-close>Done</button></h2>
+  <div class="lbl" style="margin-bottom:6px">Active preset</div>
+  <div class="ledchips" id="ledChips"></div>
+  <div class="set col" style="margin-top:12px">
+    <div><span>Animation</span></div>
+    <div class="seg pattern" id="patSeg">
+      <button data-p="5">Static</button><button data-p="1">Rotate</button><button data-p="2">Fade</button>
+      <button data-p="3">Disco</button><button data-p="4">Blink</button>
+    </div>
+  </div>
+  <div class="set col"><div><span>Speed</span><b class="num" id="spdVal">--</b></div>
+    <input id="spdRange" type="range" min="1" max="5" step="1"></div>
+  <div class="set col"><div><span>Glass brightness</span><b class="num" id="topVal">--</b></div>
+    <input id="topRange" type="range" min="0" max="10" step="1"></div>
+  <div class="set col"><div><span>Base brightness</span><b class="num" id="baseVal">--</b></div>
+    <input id="baseRange" type="range" min="0" max="10" step="1"></div>
+  <div class="set col"><div><span>Colors</span></div>
+    <div class="swatches" id="swatches"></div></div>
+  <p class="note" id="ledNote" style="margin-top:8px">Changes are saved to the selected preset on the device.</p>
+</section>
+
+<!-- Settings sheet -->
+<section class="sheet" id="settingsSheet" aria-label="Settings">
+  <h2>Settings <button class="ghost" data-close>Done</button></h2>
+  <div class="set"><span>Child lock</span><button class="toggle" id="tgLock" aria-label="Child lock"></button></div>
+  <div class="set"><span>Power saving</span><button class="toggle" id="tgSave" aria-label="Power saving"></button></div>
+  <div class="set col"><div><span>Vibration</span><b class="num" id="vibVal">--</b></div>
+    <input id="vibRange" type="range" min="0" max="10" step="1"></div>
+  <div class="set"><span>Units</span>
+    <div class="seg" id="unitSeg" style="width:130px"><button data-u="F">°F</button><button data-u="C">°C</button></div></div>
+  <div class="set"><span>Battery</span><span id="setBat" class="note">--</span></div>
+  <div class="set" style="gap:8px">
+    <button id="btnDisconnect" class="ghost" style="flex:1">Disconnect</button>
+    <button id="btnPowerOff" class="ghost" style="flex:1;color:var(--danger)">Power off</button>
+  </div>
+  <p class="note" style="margin-top:8px">Unofficial controller. Not affiliated with Focus V.</p>
+</section>
+
 <div id="toast"></div>
 
 <script>
@@ -181,6 +249,7 @@ details[open] summary::after{content:"－"}
 const SVC   = '1011123e-8535-b5a0-7140-a304d2495cb7';
 const NOTIFY= '1011123e-8535-b5a0-7140-a304d2495cb8';
 const WRITE = '1011123e-8535-b5a0-7140-a304d2495cb9';
+const DEVICE_INFO = '0000180a-0000-1000-8000-00805f9b34fb';
 const UNIT_F = 0x11, UNIT_C = 0x22;
 const ACT_SET = 0x00, ACT_START = 0xA5, ACT_CANCEL = 0xAF, ACT_ADD = 0x66;
 
@@ -216,23 +285,53 @@ function decodeStatus(b){
   };
 }
 
+/* Session presets: 5 per mode & unit, sent after the clock sync.
+   Header 0x55 flower°F, 0x33 conc°F, 0x44 flower°C, 0x22 conc°C; then 5 × [tempHi tempLo dur]. */
+const PRESET_HDR = {0x55:'flowerF', 0x33:'concentrateF', 0x44:'flowerC', 0x22:'concentrateC'};
+const PRESETS = {};
+function decodePresets(b){
+  const key = PRESET_HDR[b[0]];
+  if (!key || b[1]!==0x12 || b.length<18 || b[17]!==b[0]) return false;
+  PRESETS[key] = [0,1,2,3,4].map(i => ({temp:(b[2+i*3]<<8)|b[3+i*3], dur:b[4+i*3]}));
+  return true;
+}
+
+/* LED presets: device reports slots 1–5 as 0xEA..0xE6; writes go to 0xEE,0xE1..0xE4.
+   [hdr 14] [glassTop|base] [pattern|speed] [5 × RGB] [hdr]   pattern: 1 Rotate 2 Fade 3 Disco 4 Blink 5 Static */
+const LED_IN  = {0xEA:1, 0xE9:2, 0xE8:3, 0xE7:4, 0xE6:5};
+const LED_OUT = {1:0xEE, 2:0xE1, 3:0xE2, 4:0xE3, 5:0xE4};
+const LEDS = {};
+function decodeLed(b){
+  const slot = LED_IN[b[0]];
+  if (!slot || b[1]!==0x14 || b.length<20 || b[19]!==b[0]) return false;
+  const colors = [0,1,2,3,4].map(i => [b[4+i*3], b[5+i*3], b[6+i*3]]);
+  LEDS[slot] = { top:b[2]>>4, base:b[2]&15, pattern:b[3]>>4, speed:b[3]&15, colors };
+  return true;
+}
+function ledCmd(slot, p){
+  const out = LED_OUT[slot];
+  return send([out, 0x14, (p.top<<4)|p.base, (p.pattern<<4)|p.speed, ...p.colors.flat(), out]);
+}
+
 /* ---------- State ---------- */
 let dev = null, chr = null, writeQ = Promise.resolve(), demo = null;
 let S = null;              // last decoded status
 let mode = 'concentrate';  // UI-selected mode
-let pending = null;        // user edits not yet confirmed by device {mode,temp,dur,until}
+let pending = null;        // session edits not yet confirmed by device {mode,temp,dur,until}
+let ledEditSlot = null;    // LED slot shown in the editor
+let ledPendingUntil = 0;   // ignore device LED echoes briefly while the user is editing
 let wantConnected = false;
 const store = { get(k,d){try{const v=localStorage.getItem('cs.'+k);return v==null?d:JSON.parse(v)}catch{return d}},
                 set(k,v){try{localStorage.setItem('cs.'+k,JSON.stringify(v))}catch{}} };
 
-/* ---------- BLE ---------- */
+/* ---------- Transport ---------- */
 const $ = id => document.getElementById(id);
 
 /* Desktop bridge (sport_remote.py): when served by it, Bluetooth goes through a WebSocket
    so the page works in any browser, Firefox included. */
 let bridge = null;
 const isLocal = ['localhost','127.0.0.1'].includes(location.hostname);
-const bridgeReady = (isLocal ? fetch('/bridge').then(r => r.ok ? r.json() : null).catch(() => null) : Promise.resolve(null))
+(isLocal ? fetch('/bridge').then(r => r.ok ? r.json() : null).catch(() => null) : Promise.resolve(null))
   .then(j => { if (j && j.bridge) openBridge(); else if (!navigator.bluetooth) $('bleWarn').classList.remove('hidden'); });
 
 function openBridge(){
@@ -259,8 +358,9 @@ async function connect(){
   if (bridge){ bridge.send(JSON.stringify({type:'connect'})); return; }
   if (!navigator.bluetooth){ toast('Bluetooth not available in this browser'); return; }
   try{
+    // Same filters as the official app: the Sport advertises Device Information (180A), not its own service
     dev = await navigator.bluetooth.requestDevice({
-      filters:[{services:[SVC]},{namePrefix:'CARTA'}],
+      filters:[{services:[SVC]},{services:[DEVICE_INFO]}],
       optionalServices:[SVC,'battery_service','device_information'],
     });
     dev.addEventListener('gattserverdisconnected', onDisconnect);
@@ -302,6 +402,7 @@ function send(bytes){
   return writeQ.catch(e => { toast('Write failed: '+e.message); throw e; });
 }
 
+// The clock sync also makes the device send its session and LED presets
 function syncClock(){
   const d = new Date(), y = d.getUTCFullYear();
   send([0xDD,0x0C,hi(y),lo(y),d.getUTCMonth()+1,d.getUTCDate(),d.getUTCHours(),d.getUTCMinutes(),0,0,0,0xDD]);
@@ -316,41 +417,42 @@ function sessionCmd(action, extra=0, override={}){
   if (override.mode==='concentrate'){ cT=override.temp; cD=override.dur; cR=matchRank('concentrate',cT,cD); }
   return send([0xCC,0x10,hi(fT),lo(fT),hi(cT),lo(cT),unit,hi(fD),lo(fD),hi(cD),lo(cD),fR,cR,action,extra,0xCC]);
 }
-function settingsCmd({powerOff=false, unit, lock, vibration, powerSave}={}){
+function settingsCmd({powerOff=false, unit, lock, vibration, powerSave, ledRank}={}){
   if (!S) return;
-  unit = unit ?? S.unit; lock = lock ?? S.locked; vibration = vibration ?? S.vibration; powerSave = powerSave ?? S.powerSave;
+  unit = unit ?? S.unit; lock = lock ?? S.locked; vibration = vibration ?? S.vibration;
+  powerSave = powerSave ?? S.powerSave; ledRank = ledRank ?? S.ledRank;
   return send([0x11,0x0C, powerOff?0xAF:0, unit==='C'?UNIT_C:UNIT_F, powerSave?2:8,
-               S.flowerRank, S.concRank, S.ledRank, lock?0xAF:0, vibration, powerSave?1:0, 0x11]);
+               S.flowerRank, S.concRank, ledRank, lock?0xAF:0, vibration, powerSave?1:0, 0x11]);
 }
 
-/* ---------- UI ---------- */
-function showApp(){ $('connectView').classList.add('hidden'); $('appView').classList.remove('hidden'); }
-function showConnect(){ $('appView').classList.add('hidden'); $('connectView').classList.remove('hidden'); }
-function setLink(t,on){ $('linkTxt').textContent=t; $('linkDot').classList.toggle('on',on); }
-let toastT; function toast(m){ const t=$('toast'); t.textContent=m; t.classList.add('show'); clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove('show'),2600); }
-
+/* ---------- Helpers ---------- */
+const presetsFor = m => (S && PRESETS[m+S.unit]) || [];
+const rankOf = m => m==='flower' ? S.flowerRank : S.concRank;
+function matchRank(m,temp,dur){ return presetsFor(m).findIndex(p => p.temp===temp && p.dur===dur) + 1; }
+// what the device will actually run for a mode: the active preset slot, or the custom slot (rank 0)
+function curDevice(m){
+  const p = presetsFor(m)[rankOf(m)-1];
+  if (p) return {...p};
+  return m==='flower' ? {temp:S.flowerTemp,dur:S.flowerDur} : {temp:S.concTemp,dur:S.concDur};
+}
 function limits(m){
   const L = LIMITS[m], C = S && S.unit==='C';
-  return { t: C ? L.tF.map(f2c) : L.tF, d: L.dur, step: C ? 1 : 1 };
+  return { t: C ? L.tF.map(f2c) : L.tF, d: L.dur };
 }
 function curSet(m){
   if (pending && pending.mode===m) return pending;
   if (!S) return { temp: limits(m).t[0], dur: limits(m).d[0] };
   return curDevice(m);
 }
-/* Device presets: 5 per mode & unit, sent after the clock sync.
-   Header 0x55 flower°F, 0x33 conc°F, 0x44 flower°C, 0x22 conc°C; then 5 × [tempHi tempLo dur]. */
-const PRESET_HDR = {0x55:'flowerF', 0x33:'concentrateF', 0x44:'flowerC', 0x22:'concentrateC'};
-const PRESETS = {};
-function decodePresets(b){
-  const key = PRESET_HDR[b[0]];
-  if (!key || b[1]!==0x12 || b.length<18 || b[17]!==b[0]) return false;
-  PRESETS[key] = [0,1,2,3,4].map(i => ({temp:(b[2+i*3]<<8)|b[3+i*3], dur:b[4+i*3]}));
-  return true;
-}
-const presetsFor = m => (S && PRESETS[m+S.unit]) || [];
-const rankOf = m => m==='flower' ? S.flowerRank : S.concRank;
-function matchRank(m,temp,dur){ return presetsFor(m).findIndex(p => p.temp===temp && p.dur===dur) + 1; }
+const rgbHex = c => '#'+c.map(v=>v.toString(16).padStart(2,'0')).join('');
+const hexRgb = h => [1,3,5].map(i=>parseInt(h.slice(i,i+2),16));
+
+/* ---------- UI ---------- */
+function showApp(){ $('connectView').classList.add('hidden'); $('appView').classList.remove('hidden'); }
+function showConnect(){ $('appView').classList.add('hidden'); $('connectView').classList.remove('hidden'); closeSheets(); }
+function setLink(t,on){ $('linkTxt').textContent=t; $('linkDot').classList.toggle('on',on); }
+let toastT; function toast(m){ const t=$('toast'); t.textContent=m; t.classList.add('show'); clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove('show'),2600); }
+function setHTML(el, html){ if (el.dataset.html !== html){ el.innerHTML = html; el.dataset.html = html; } } // keep taps from landing on a node that was just replaced
 
 function renderControls(){
   const L = limits(mode), v = curSet(mode), u = S ? S.unit : 'F';
@@ -359,38 +461,38 @@ function renderControls(){
   tr.min=L.t[0]; tr.max=L.t[1]; dr.min=L.d[0]; dr.max=L.d[1];
   if (document.activeElement!==tr) tr.value=v.temp;
   if (document.activeElement!==dr) dr.value=v.dur;
-  $('tVal').textContent = `${v.temp}°${u}`;
+  $('tVal').textContent = `${v.temp}°`;
   $('dVal').textContent = fmtTime(+v.dur);
-  // device presets (P1–P5) then the user's saved ones
   const r = S ? matchRank(mode, +v.temp, +v.dur) : 0;
   const q = store.get(`quick.${mode}.${u}`, []);
-  const html = presetsFor(mode).map((p,i)=>`<button class="ghost${r===i+1?' sel':''}" data-p="${i}">P${i+1} · ${p.temp}° · ${fmtTime(p.dur)}</button>`).join('')
-    + q.map((p,i)=>`<button class="ghost" data-q="${i}">${p.temp}° · ${fmtTime(p.dur)}</button>`).join('')
-    + `<button class="ghost" data-save="1">＋ Save current</button>`;
-  // only rebuild when changed, so taps aren't lost to a re-render mid-press
-  if ($('quick').dataset.html !== html){ $('quick').innerHTML = html; $('quick').dataset.html = html; }
+  setHTML($('quick'),
+    presetsFor(mode).map((p,i)=>`<button class="${r===i+1?'sel':''}" data-p="${i}"><b>P${i+1}</b> ${p.temp}° · ${fmtTime(p.dur)}</button>`).join('')
+    + q.map((p,i)=>`<button data-q="${i}"><b>★</b> ${p.temp}° · ${fmtTime(p.dur)}</button>`).join('')
+    + `<button data-save="1">＋ Save</button>`);
 }
 
 function render(){
   if (!S) return;
   const heating = S.remaining>0;
-  const active = curDevice(S.atomizer==='none' ? mode : S.atomizer), tgt = active.temp;
+  const runMode = S.atomizer==='none' ? mode : S.atomizer;
+  const active = curDevice(runMode), tgt = active.temp;
   const ready = heating && S.temp >= tgt - (S.unit==='C'?3:5);
-  // live reading while heating; the set temperature while idle
-  $('curTemp').textContent = heating ? S.temp : curSet(mode).temp;
-  $('unitLbl').textContent = '°'+S.unit;
+  const shown = heating ? active : curSet(mode);
+  document.querySelectorAll('.unit').forEach(e => e.textContent = '°'+S.unit);
+  $('liveTemp').textContent = S.temp;
+  $('liveBox').className = heating ? (ready ? 'ready' : 'hot') : '';
   const st = $('state');
   st.textContent = heating ? (ready ? 'Ready' : 'Heating') : (S.atomizer==='none' ? 'No atomizer' : 'Idle');
   st.className = 'state' + (heating ? (ready?' ready':' hot') : '');
-  $('subline').textContent = heating ? `Target ${tgt}°${S.unit} · ${fmtTime(S.remaining)} left` : `Set · ${fmtTime(+curSet(mode).dur)}`;
-  $('dial').classList.toggle('heating', heating && !ready);
-  // dial: temp progress toward target while heating up, time remaining once ready, temp vs max when idle
-  const maxT = limits(S.atomizer==='none'?mode:S.atomizer).t[1];
-  let frac = heating ? (ready ? S.remaining / active.dur : S.temp/tgt) : Math.min(curSet(mode).temp/maxT,1);
-  $('bar').style.strokeDashoffset = 405.3 * (1 - Math.max(0,Math.min(1,frac)));
-  $('stTime').textContent = fmtTime(S.remaining);
-  $('stMode').textContent = S.atomizer==='none' ? 'None' : S.atomizer==='flower' ? 'Flower' : 'Conc.';
-  $('stSleep').textContent = S.locked ? 'Locked' : S.sleep>0 && S.sleep*2.5<=60 ? `Sleep in ${Math.round(S.sleep*2.5)}s` : S.charging ? 'Charging' : 'Awake';
+  $('setLbl').textContent = heating ? 'Target' : 'Set';
+  $('setTemp').textContent = shown.temp;
+  $('timeLine').textContent = heating ? `${fmtTime(S.remaining)} left` : `${fmtTime(+shown.dur)} session`;
+  // progress: heat-up toward target, then time remaining
+  const frac = heating ? (ready ? S.remaining/active.dur : S.temp/tgt) : 0;
+  $('progBar').style.width = (Math.max(0,Math.min(1,frac))*100)+'%';
+  $('prog').classList.toggle('hot', heating && !ready);
+  $('factAtom').textContent = S.atomizer==='none' ? 'No atomizer' : (S.atomizer==='flower' ? 'Flower' : 'Concentrate') + ' atomizer';
+  $('factStatus').textContent = S.locked ? '🔒 Locked' : S.sleep>0 && S.sleep*2.5<=60 ? `Sleeping in ${Math.round(S.sleep*2.5)}s` : S.charging ? '⚡ Charging' : 'Awake';
   $('bat').textContent = S.battery+'%'; $('batIcon').textContent = S.charging ? '⚡' : '🔋';
   $('setBat').textContent = S.battery+'%' + (S.charging?' · charging':'');
   $('tgLock').classList.toggle('on', S.locked);
@@ -398,15 +500,39 @@ function render(){
   if (document.activeElement!==$('vibRange')) $('vibRange').value = S.vibration;
   $('vibVal').textContent = S.vibration;
   document.querySelectorAll('#unitSeg button').forEach(b=>b.classList.toggle('sel', b.dataset.u===S.unit));
-  $('btnStart').disabled = heating || S.atomizer==='none';
-  $('btnStart').textContent = S.atomizer==='none' ? 'Attach an atomizer' : heating ? (ready?'Ready – enjoy':'Heating…') : `Start ${S.atomizer==='flower'?'flower':'concentrate'}`;
-  $('btnAdd').disabled = !heating; $('btnCancel').disabled = !heating;
+  $('btnStart').classList.toggle('hidden', heating);
+  $('runRow').classList.toggle('hidden', !heating);
+  $('btnStart').disabled = S.atomizer==='none';
+  $('btnStart').textContent = S.atomizer==='none' ? 'Attach an atomizer' : `Start ${S.atomizer}`;
   renderControls();
+  renderLights();
+}
+
+function renderLights(){
+  if (!S) return;
+  setHTML($('ledChips'), [1,2,3,4,5].map(n => {
+    const p = LEDS[n], dots = p ? p.colors.map(c=>`<i style="background:${rgbHex(c)}"></i>`).join('') : '';
+    return `<button data-led="${n}" class="${S.ledRank===n?'sel':''}">${n}<span class="dots">${dots}</span></button>`;
+  }).join(''));
+  const slot = ledEditSlot ?? S.ledRank;
+  const p = LEDS[slot];
+  const editor = [$('patSeg'),$('spdRange'),$('topRange'),$('baseRange')];
+  editor.forEach(e => e.closest('.set').style.opacity = p ? 1 : .4);
+  $('ledNote').textContent = p ? `Editing preset ${slot}. Changes save to the device.` : 'Waiting for the device to send its light presets…';
+  if (!p) return;
+  document.querySelectorAll('#patSeg button').forEach(b => b.classList.toggle('sel', +b.dataset.p===p.pattern));
+  const setR = (id, v, lbl) => { if (document.activeElement!==$(id)) $(id).value=v; $(lbl).textContent=v; };
+  setR('spdRange', p.speed, 'spdVal'); setR('topRange', p.top, 'topVal'); setR('baseRange', p.base, 'baseVal');
+  $('spdRange').disabled = p.pattern===5;
+  setHTML($('swatches'), p.colors.map((c,i)=>`<label><input type="color" data-c="${i}" value="${rgbHex(c)}">${i+1}</label>`).join(''));
+  // keep swatches in sync with device without rebuilding while the picker is open
+  document.querySelectorAll('#swatches input').forEach((inp,i) => { if (document.activeElement!==inp) inp.value = rgbHex(p.colors[i]); });
 }
 
 let firstFrame = true;
 function onFrame(b){
   if (decodePresets(b)){ if (S) render(); return; }
+  if (LED_IN[b[0]]){ if (Date.now() > ledPendingUntil || !LEDS[LED_IN[b[0]]]) decodeLed(b); renderLights(); return; }
   const s = decodeStatus(b);
   if (!s) return;
   const unitChanged = S && S.unit!==s.unit;
@@ -419,29 +545,44 @@ function onFrame(b){
   }
   render();
 }
-// what the device will actually run for a mode: the active preset slot, or the custom slot (rank 0)
-function curDevice(m){
-  const p = presetsFor(m)[rankOf(m)-1];
-  if (p) return {...p};
-  return m==='flower' ? {temp:S.flowerTemp,dur:S.flowerDur} : {temp:S.concTemp,dur:S.concDur};
-}
 
-/* edits: update locally at once, push to device (debounced) so its screen matches */
+/* session edits: update locally at once, push to device (debounced) so its screen matches */
 let pushT;
 function edit(temp, dur){
   const L = limits(mode);
   temp = Math.max(L.t[0], Math.min(L.t[1], Math.round(temp)));
   dur  = Math.max(L.d[0], Math.min(L.d[1], Math.round(dur)));
   pending = { mode, temp, dur, until: Date.now()+4000 };
-  renderControls();
+  render();
   clearTimeout(pushT);
   pushT = setTimeout(()=>{ if (S && S.remaining===0) sessionCmd(ACT_SET,0,pending); }, 350);
 }
 
+/* LED edits: apply locally, write the slot after a short pause */
+let ledT;
+function editLed(change){
+  const slot = ledEditSlot ?? S.ledRank, p = LEDS[slot];
+  if (!p) return;
+  Object.assign(p, change);
+  ledPendingUntil = Date.now() + 2500;
+  renderLights();
+  clearTimeout(ledT);
+  ledT = setTimeout(() => ledCmd(slot, p), 300);
+}
+
+/* ---------- Sheets ---------- */
+function openSheet(id){ closeSheets(); $(id).classList.add('show'); $('scrim').classList.add('show'); }
+function closeSheets(){ document.querySelectorAll('.sheet').forEach(s=>s.classList.remove('show')); $('scrim').classList.remove('show'); }
+$('btnLights').onclick = () => { ledEditSlot = null; renderLights(); openSheet('lightsSheet'); };
+$('btnSettings').onclick = () => openSheet('settingsSheet');
+$('scrim').onclick = closeSheets;
+document.querySelectorAll('[data-close]').forEach(b => b.onclick = closeSheets);
+document.addEventListener('keydown', e => { if (e.key==='Escape') closeSheets(); });
+
 /* ---------- Wire up ---------- */
 $('btnConnect').onclick = connect;
 $('btnDemo').onclick = () => { demo = new Demo(); showApp(); setLink('Demo', true); $('devName').textContent='DEMO'; syncClock(); };
-document.querySelectorAll('#modeSeg button').forEach(b => b.onclick = () => { mode=b.dataset.mode; pending=null; renderControls(); });
+document.querySelectorAll('#modeSeg button').forEach(b => b.onclick = () => { mode=b.dataset.mode; pending=null; render(); });
 $('tRange').oninput = e => edit(+e.target.value, curSet(mode).dur);
 $('dRange').oninput = e => edit(curSet(mode).temp, +e.target.value);
 document.querySelectorAll('[data-step]').forEach(b => {
@@ -452,15 +593,22 @@ document.querySelectorAll('[data-step]').forEach(b => {
   ['pointerup','pointerleave','pointercancel'].forEach(ev=>b.addEventListener(ev,()=>clearTimeout(rep)));
 });
 $('quick').onclick = e => {
-  const u = S?S.unit:'F', key=`quick.${mode}.${u}`;
-  const q = store.get(key,[]);
-  if (e.target.dataset.p!=null){ const p=presetsFor(mode)[+e.target.dataset.p]; edit(p.temp,p.dur); }
-  else if (e.target.dataset.q!=null){ const p=q[+e.target.dataset.q]; edit(p.temp,p.dur); }
-  else if (e.target.dataset.save){ const v=curSet(mode); q.push({temp:+v.temp,dur:+v.dur}); store.set(key,q.slice(-6)); renderControls(); toast('Saved'); }
+  const t = e.target.closest('button'); if (!t) return;
+  const u = S?S.unit:'F', key=`quick.${mode}.${u}`, q = store.get(key,[]);
+  if (t.dataset.p!=null){ const p=presetsFor(mode)[+t.dataset.p]; edit(p.temp,p.dur); }
+  else if (t.dataset.q!=null){ const p=q[+t.dataset.q]; edit(p.temp,p.dur); }
+  else if (t.dataset.save){ const v=curSet(mode); q.push({temp:+v.temp,dur:+v.dur}); store.set(key,q.slice(-6)); renderControls(); toast('Saved'); }
 };
+// long-press a saved (★) chip to remove it
+$('quick').addEventListener('contextmenu', e => {
+  const t = e.target.closest('button[data-q]'); if (!t) return;
+  e.preventDefault();
+  const u = S?S.unit:'F', key=`quick.${mode}.${u}`, q = store.get(key,[]);
+  q.splice(+t.dataset.q,1); store.set(key,q); renderControls(); toast('Removed');
+});
 $('btnStart').onclick = () => {
   if (!S) return;
-  if (S.atomizer!==mode){ toast(`Device has a ${S.atomizer} atomizer attached`); mode=S.atomizer; renderControls(); return; }
+  if (S.atomizer!==mode){ toast(`Device has a ${S.atomizer} atomizer attached`); mode=S.atomizer; render(); return; }
   const v = curSet(mode);
   sessionCmd(ACT_START, 0, {mode, temp:+v.temp, dur:+v.dur});
   navigator.vibrate?.(30);
@@ -470,52 +618,83 @@ $('btnAdd').onclick = () => {
   if (!S) return; const m=S.atomizer, v=curDevice(m);
   sessionCmd(ACT_ADD, 10, {mode:m, temp:v.temp, dur:v.dur+10});
 };
+// lights
+$('ledChips').onclick = e => {
+  const t = e.target.closest('button[data-led]'); if (!t || !S) return;
+  const n = +t.dataset.led; ledEditSlot = n;
+  if (S.ledRank!==n) settingsCmd({ledRank:n});
+  renderLights();
+};
+$('patSeg').onclick = e => { const t=e.target.closest('button[data-p]'); if (t) editLed({pattern:+t.dataset.p}); };
+$('spdRange').oninput  = e => editLed({speed:+e.target.value});
+$('topRange').oninput  = e => editLed({top:+e.target.value});
+$('baseRange').oninput = e => editLed({base:+e.target.value});
+$('swatches').addEventListener('input', e => {
+  const i = e.target.dataset.c; if (i==null) return;
+  const p = LEDS[ledEditSlot ?? S.ledRank]; if (!p) return;
+  const colors = p.colors.slice(); colors[+i] = hexRgb(e.target.value);
+  editLed({colors});
+});
+// settings
 $('tgLock').onclick = () => S && settingsCmd({lock:!S.locked});
 $('tgSave').onclick = () => S && settingsCmd({powerSave:!S.powerSave});
 $('vibRange').onchange = e => settingsCmd({vibration:+e.target.value});
+$('vibRange').oninput = e => $('vibVal').textContent = e.target.value;
 document.querySelectorAll('#unitSeg button').forEach(b => b.onclick = () => S && S.unit!==b.dataset.u && settingsCmd({unit:b.dataset.u}));
 $('btnPowerOff').onclick = () => { if (confirm('Power off the device?')) { wantConnected=false; settingsCmd({powerOff:true});
-  if (bridge && !demo) setTimeout(() => bridge.send(JSON.stringify({type:'disconnect'})), 800); } };
-$('btnDisconnect').onclick = () => { wantConnected=false; if (dev?.gatt?.connected) dev.gatt.disconnect(); if (bridge && !demo) bridge.send(JSON.stringify({type:'disconnect'})); demo?.stop(); demo=null; S=null; firstFrame=true; showConnect(); };
+  if (bridge && !demo) setTimeout(() => bridge.send(JSON.stringify({type:'disconnect'})), 800); closeSheets(); } };
+$('btnDisconnect').onclick = () => { wantConnected=false; if (dev?.gatt?.connected) dev.gatt.disconnect(); if (bridge && !demo) bridge.send(JSON.stringify({type:'disconnect'}));
+  demo?.stop(); demo=null; S=null; firstFrame=true; showConnect(); };
 document.addEventListener('visibilitychange', () => { if (!document.hidden && dev && wantConnected && !dev.gatt.connected) onDisconnect(); });
 
 /* ---------- Demo device: speaks the same byte protocol ---------- */
 class Demo{
   constructor(){
-    this.s = {atom:0x60, unit:UNIT_F, fR:0,cR:0, rem:0, temp:78, fT:380,cT:500, bat:82, fD:180,cD:45, lock:0,chg:0, vib:5,save:0, phase:0};
+    this.s = {atom:0x60, unit:UNIT_F, fR:0,cR:2, rem:0, temp:78, fT:380,cT:500, bat:82, fD:180,cD:45, lock:0,chg:0, vib:5,save:0, phase:0, led:1};
+    this.leds = {1:[0xAA,0x13,[0,255,0],[255,0,0],[0,0,255],[255,255,0],[255,0,255]],
+                 2:[0xAA,0x23,[0,255,255],[255,128,0],[128,0,255],[255,255,255],[0,128,255]],
+                 3:[0xAA,0x33,[255,0,0],[255,64,0],[255,128,0],[255,192,0],[255,255,0]],
+                 4:[0xAA,0x53,[0,66,169],[0,66,169],[0,66,169],[0,66,169],[255,0,255]],
+                 5:[0xAA,0x53,[1,227,0],[16,221,0],[33,238,0],[9,234,0],[17,255,64]]};
     this.timer = setInterval(()=>this.tick(), 500);
     this.tick();
   }
   stop(){ clearInterval(this.timer); }
+  sendLed(n){ const [a,b,...c]=this.leds[n], h=[0,0xEA,0xE9,0xE8,0xE7,0xE6][n]; onFrame(new Uint8Array([h,0x14,a,b,...c.flat(),h])); }
   handle(b){
     const s=this.s;
-    if (b[0]===0xCC){
-      s.fT=(b[2]<<8)|b[3]; s.cT=(b[4]<<8)|b[5]; s.fD=(b[7]<<8)|b[8]; s.cD=(b[9]<<8)|b[10]; s.fR=b[11]; s.cR=b[12];
-      if (b[13]===ACT_START){ s.phase=1; s.rem = s.atom===0xA0?s.fD:s.cD; }
-      if (b[13]===ACT_CANCEL){ s.phase=0; s.rem=0; }
-      if (b[13]===ACT_ADD && s.phase) s.rem=Math.min(255,s.rem+b[14]);
-    }
     if (b[0]===0xDD){
       const send = (h, list) => onFrame(new Uint8Array([h,0x12,...list.flatMap(([t,d])=>[hi(t),lo(t),d]),h]));
       send(0x55,[[330,240],[350,240],[370,240],[390,240],[410,240]]);
       send(0x33,[[465,95],[490,80],[525,95],[440,90],[580,45]]);
       send(0x44,[[166,240],[177,240],[188,240],[199,240],[210,240]]);
       send(0x22,[[240,95],[254,80],[273,95],[226,90],[304,45]]);
+      [1,2,3,4,5].forEach(n=>this.sendLed(n));
+    }
+    if (b[0]===0xCC){
+      s.fT=(b[2]<<8)|b[3]; s.cT=(b[4]<<8)|b[5]; s.fD=(b[7]<<8)|b[8]; s.cD=(b[9]<<8)|b[10]; s.fR=b[11]; s.cR=b[12];
+      const dur = s.atom===0xA0 ? (s.fR? [240,240,240,240,240][s.fR-1] : s.fD) : (s.cR? [95,80,95,90,45][s.cR-1] : s.cD);
+      if (b[13]===ACT_START){ s.phase=1; s.rem = dur; }
+      if (b[13]===ACT_CANCEL){ s.phase=0; s.rem=0; }
+      if (b[13]===ACT_ADD && s.phase) s.rem=Math.min(255,s.rem+b[14]);
     }
     if (b[0]===0x11){
       if (b[3]!==s.unit){ const toC=b[3]===UNIT_C, cv=toC?f2c:c2f; s.fT=cv(s.fT); s.cT=cv(s.cT); s.temp=cv(s.temp); s.unit=b[3]; }
-      s.lock=b[8]?1:0; s.vib=b[9]; s.save=b[10];
+      s.lock=b[8]?1:0; s.vib=b[9]; s.save=b[10]; s.led=b[7];
       if (b[2]===0xAF){ toast('Demo: device powered off'); }
     }
+    const slot = {0xEE:1,0xE1:2,0xE2:3,0xE3:4,0xE4:5}[b[0]];
+    if (slot && b[1]===0x14){ this.leds[slot]=[b[2],b[3],...[0,1,2,3,4].map(i=>[b[4+i*3],b[5+i*3],b[6+i*3]])]; this.sendLed(slot); }
     this.tick();
   }
   tick(){
-    const s=this.s, tgt=s.atom===0xA0?s.fT:s.cT, room=s.unit===UNIT_C?26:78;
+    const s=this.s, tgt = s.atom===0xA0 ? (s.fR?[330,350,370,390,410][s.fR-1]:s.fT) : (s.cR?[465,490,525,440,580][s.cR-1]:s.cT);
+    const room=s.unit===UNIT_C?26:78;
     if (s.phase){ s.temp += Math.max(1, Math.round((tgt-s.temp)*0.15)); if (s.temp>=tgt-3){ s.temp=tgt; s.rem=Math.max(0,s.rem-0.5); if(!s.rem) s.phase=0; } }
     else s.temp = Math.max(room, s.temp - Math.round((s.temp-room)*0.05) - (s.temp>room?1:0));
     const r=Math.ceil(s.rem);
     onFrame(new Uint8Array([0x99,0x14,s.atom,s.unit,(s.fR<<4)|s.cR,r,hi(s.temp),lo(s.temp),hi(s.fT),lo(s.fT),hi(s.cT),lo(s.cT),
-      s.bat,0x08,s.fD,s.cD,(s.lock<<4)|s.chg,(s.vib<<4)|s.save,0,0x99]));
+      s.bat,(s.led<<4)|8,s.fD,s.cD,(s.lock<<4)|s.chg,(s.vib<<4)|s.save,0,0x99]));
   }
 }
 </script>
