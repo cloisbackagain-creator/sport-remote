@@ -334,6 +334,8 @@ input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;bac
   <div class="set"><span>Battery</span><span id="setBat" class="note">--</span></div>
   <div class="set"><div><div>Recalibrate atomizer</div><div class="note" style="text-align:left">Only when fully cool (off 10+ min). Fixes wrong temperature readings.</div></div>
     <button id="btnRecal" class="ghost" style="flex:none">Recalibrate</button></div>
+  <div class="set"><div><div>Always do a full heat-up</div><div class="note" style="text-align:left">Works around the Carta signalling ready too early when a preset is repeated.</div></div>
+    <button class="toggle" id="tgFullHeat" aria-label="Always do a full heat-up"></button></div>
   <div class="set"><div><div>Record diagnostics</div><div class="note" style="text-align:left">Logs raw device data during sessions.</div></div>
     <button class="toggle" id="tgDiag" aria-label="Record diagnostics"></button></div>
   <div class="set"><span>Diagnostics log <span class="note" id="diagCount"></span></span>
@@ -678,7 +680,7 @@ function render(){
   document.querySelectorAll('#unitSeg button').forEach(b=>b.classList.toggle('sel', b.dataset.u===S.unit));
   $('btnStart').classList.toggle('hidden', heating);
   $('runRow').classList.toggle('hidden', !heating);
-  $('btnStart').disabled = S.atomizer==='none';
+  $('btnStart').disabled = S.atomizer==='none' || Date.now() < startLock;
   $('btnStart').textContent = S.atomizer==='none' ? 'Attach an atomizer' : `Start ${S.atomizer}`;
   renderControls();
   renderLights();
@@ -989,10 +991,25 @@ $('peSave').onclick = () => {
 $('btnStart').onclick = () => {
   if (!S) return;
   if (S.atomizer!==mode){ toast(`Device has a ${S.atomizer} atomizer attached`); mode=S.atomizer; render(); return; }
-  const v = curSet(mode);
-  sessionCmd(ACT_START, 0, {mode, temp:+v.temp, dur:+v.dur});
+  const v = curSet(mode), go = {mode, temp:+v.temp, dur:+v.dur};
+  if (Date.now() < startLock) return;
+  clearTimeout(pushT);
+  startLock = Date.now() + 2000; $('btnStart').disabled = true;
+  // Firmware quirk: re-starting the same preset as the last session makes the Carta signal
+  // "ready" at once (it still heats, but the countdown and ready buzz start early). Changing the
+  // setting first avoids it, so nudge the temperature 5° away, then start at the real value.
+  if (fullHeat){
+    const L = limits(mode), step = S.unit==='C' ? 3 : 5;
+    const nudge = go.temp + step <= L.t[1] ? go.temp + step : go.temp - step;
+    sessionCmd(ACT_SET, 0, {...go, temp: nudge});
+    setTimeout(() => sessionCmd(ACT_START, 0, go), 600);
+  } else sessionCmd(ACT_START, 0, go);
   navigator.vibrate?.(30);
 };
+let startLock = 0;
+let fullHeat = store.get('fullHeat', true);
+$('tgFullHeat').classList.toggle('on', fullHeat);
+$('tgFullHeat').onclick = () => { fullHeat = !fullHeat; store.set('fullHeat', fullHeat); $('tgFullHeat').classList.toggle('on', fullHeat); };
 $('btnCancel').onclick = () => sessionCmd(ACT_CANCEL, 0);
 $('btnAdd').onclick = () => {
   if (!S) return; const m=S.atomizer, v=curDevice(m);
