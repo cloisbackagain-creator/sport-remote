@@ -386,7 +386,8 @@ input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;bac
 <!-- Settings sheet -->
 <section class="sheet" id="settingsSheet" aria-label="Settings">
   <h2>Settings <button class="ghost" data-close>Done</button></h2>
-  <div class="set"><span>Child lock</span><button class="toggle" id="tgLock" aria-label="Child lock"></button></div>
+  <div class="set"><div><div>Preset lock</div><div class="note" style="text-align:left">Keeps the device on the current preset. Note: a single press of the V button then starts a session (normally it takes two).</div></div>
+    <button class="toggle" id="tgLock" aria-label="Preset lock"></button></div>
   <div class="set"><span>Power saving</span><button class="toggle" id="tgSave" aria-label="Power saving"></button></div>
   <div class="set col"><div><span>Vibration</span><b class="num" id="vibVal">--</b></div>
     <input id="vibRange" type="range" min="0" max="10" step="1"></div>
@@ -456,7 +457,7 @@ function decodeStatus(b){
     battery: b[12],
     ledRank: b[13]>>4, brightness: b[13]&15,
     flowerDur: b[14], concDur: b[15],
-    locked: (b[16]>>4)===1, charging: (b[16]&15)===1,
+    locked: (b[16]>>4)===1, charging: (b[16]&15)===1,   // "locked" = preset lock: 1 press starts a session
     vibration: b[17]>>4, powerSave: (b[17]&15)===1,
     sleep: b[18],
   };
@@ -787,7 +788,7 @@ function render(){
   $('progBar').style.width = (Math.max(0,Math.min(1,frac))*100)+'%';
   $('prog').classList.toggle('hot', !!warming);
   $('factAtom').textContent = S.atomizer==='none' ? 'No atomizer' : (S.atomizer==='flower' ? 'Flower' : 'Concentrate') + ' atomizer';
-  $('factStatus').textContent = S.locked ? '🔒 Locked' : S.sleep>0 && S.sleep*2.5<=60 ? `Sleeping in ${Math.round(S.sleep*2.5)}s` : S.charging ? '⚡ Charging' : 'Awake';
+  $('factStatus').textContent = S.locked ? '🔒 Preset locked · 1 press starts' : S.sleep>0 && S.sleep*2.5<=60 ? `Sleeping in ${Math.round(S.sleep*2.5)}s` : S.charging ? '⚡ Charging' : 'Awake';
   if (S.battery <= 15 && !S.charging && !lowBattWarned){ lowBattWarned = true; notify('Carta battery low', `${S.battery}% left`, 'batt'); }
   if (S.battery > 25 || S.charging) lowBattWarned = false;
   $('bat').textContent = S.battery+'%'; $('batIcon').textContent = S.charging ? '⚡' : '🔋';
