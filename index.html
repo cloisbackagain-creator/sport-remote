@@ -1,0 +1,467 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0d0f10">
+<title>Sport Remote</title>
+<style>
+:root{
+  --bg:#0d0f10;--card:#16191b;--card2:#1d2124;--line:#2a2f33;--text:#eef1f2;--dim:#8b959b;
+  --accent:#19c3a5;--accent2:#0f8f79;--heat:#ff8a3d;--danger:#ff5d5d;--radius:20px;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--text);font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+body{min-height:100dvh;padding:calc(env(safe-area-inset-top) + 12px) 16px calc(env(safe-area-inset-bottom) + 20px)}
+main{max-width:480px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
+header{display:flex;align-items:center;justify-content:space-between;gap:8px}
+h1{font-size:18px;margin:0;letter-spacing:.02em}
+.pill{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--dim);background:var(--card);border:1px solid var(--line);border-radius:99px;padding:6px 10px;white-space:nowrap}
+.dot{width:8px;height:8px;border-radius:50%;background:#555}
+.dot.on{background:var(--accent);box-shadow:0 0 8px var(--accent)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:16px}
+button{font:inherit;color:inherit;border:0;cursor:pointer;border-radius:14px;padding:14px 16px;background:var(--card2);transition:transform .08s,background .2s,opacity .2s}
+button:active{transform:scale(.97)}
+button:disabled{opacity:.4;pointer-events:none}
+.primary{background:var(--accent);color:#04211c;font-weight:700}
+.danger{background:var(--danger);color:#2a0606;font-weight:700}
+.ghost{background:transparent;border:1px solid var(--line)}
+/* dial */
+.dial{position:relative;display:grid;place-items:center;padding:6px 0;overflow:hidden}
+.dial svg{width:min(78vw,300px);height:auto;transform:rotate(135deg)}
+.dial .track{stroke:var(--card2)}
+.dial .bar{stroke:var(--accent);transition:stroke-dashoffset .5s ease,stroke .4s}
+.dial.heating .bar{stroke:var(--heat)}
+.dial .center{position:absolute;text-align:center}
+.big{font-size:64px;font-weight:700;line-height:1;font-variant-numeric:tabular-nums}
+.big small{font-size:24px;font-weight:600;color:var(--dim);margin-left:2px}
+.state{margin-top:8px;font-size:15px;color:var(--dim);font-weight:600;letter-spacing:.04em;text-transform:uppercase}
+.state.hot{color:var(--heat)}.state.ready{color:var(--accent)}
+.sub{margin-top:4px;font-size:14px;color:var(--dim);font-variant-numeric:tabular-nums}
+/* stats */
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.stat{background:var(--card2);border-radius:14px;padding:10px;text-align:center}
+.stat b{display:block;font-size:17px;font-variant-numeric:tabular-nums}
+.stat span{font-size:12px;color:var(--dim)}
+/* controls */
+.row{display:flex;gap:10px}
+.row>*{flex:1}
+.seg{display:flex;background:var(--card2);border-radius:14px;padding:4px;gap:4px}
+.seg button{flex:1;padding:10px;background:transparent;border-radius:10px;color:var(--dim);font-weight:600}
+.seg button.sel{background:var(--accent);color:#04211c}
+.ctl{display:flex;flex-direction:column;gap:8px;margin-top:14px}
+.ctl label{display:flex;justify-content:space-between;font-size:14px;color:var(--dim)}
+.ctl label b{color:var(--text);font-variant-numeric:tabular-nums;font-size:16px}
+.stepper{display:flex;align-items:center;gap:10px}
+.stepper button{width:48px;height:44px;padding:0;font-size:22px;flex:none}
+input[type=range]{flex:1;-webkit-appearance:none;appearance:none;height:6px;border-radius:6px;background:var(--card2);outline:none}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:26px;height:26px;border-radius:50%;background:var(--accent);border:3px solid var(--bg)}
+input[type=range]::-moz-range-thumb{width:22px;height:22px;border-radius:50%;background:var(--accent);border:3px solid var(--bg)}
+.presets{display:flex;gap:8px;overflow-x:auto;padding-bottom:2px;margin-top:12px}
+.presets button{flex:none;padding:8px 12px;font-size:13px;border-radius:99px}
+.actions{display:grid;grid-template-columns:1fr;gap:10px}
+.actions .row button{padding:14px 8px}
+.go{font-size:20px;padding:18px}
+/* settings */
+details summary{list-style:none;cursor:pointer;display:flex;justify-content:space-between;font-weight:600}
+details summary::-webkit-details-marker{display:none}
+details summary::after{content:"＋";color:var(--dim)}
+details[open] summary::after{content:"－"}
+.set{display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-top:1px solid var(--line);gap:12px}
+.set:first-of-type{margin-top:12px}
+.toggle{width:52px;height:30px;padding:0;border-radius:99px;background:var(--card2);position:relative;flex:none}
+.toggle::after{content:"";position:absolute;top:3px;left:3px;width:24px;height:24px;border-radius:50%;background:#aab;transition:left .2s,background .2s}
+.toggle.on{background:var(--accent2)}.toggle.on::after{left:25px;background:#fff}
+.note{font-size:13px;color:var(--dim);text-align:center;margin:0}
+.hidden{display:none!important}
+#connectView{min-height:70dvh;display:flex;flex-direction:column;justify-content:center;gap:14px;text-align:center}
+#connectView .logo{font-size:44px;font-weight:800;letter-spacing:.04em}
+#connectView .logo span{color:var(--accent)}
+#toast{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom) + 20px);transform:translateX(-50%) translateY(120px);background:#2b3236;color:var(--text);padding:12px 16px;border-radius:12px;font-size:14px;transition:transform .3s;max-width:90vw;z-index:9}
+#toast.show{transform:translateX(-50%) translateY(0)}
+</style>
+</head>
+<body>
+<main>
+  <!-- Connect screen -->
+  <section id="connectView">
+    <div class="logo">SPORT<span>.</span></div>
+    <p class="note">Power on your CARTA Sport (press the V button 5×), keep it close, then connect.</p>
+    <button id="btnConnect" class="primary go">Connect</button>
+    <button id="btnDemo" class="ghost">Try demo mode</button>
+    <p id="bleWarn" class="note hidden">This browser can't use Bluetooth. On iPhone, open this page in <b>Bluefy</b> or the Focus V <b>V Browser</b>. On Android/desktop, use Chrome.</p>
+  </section>
+
+  <!-- Control screen -->
+  <section id="appView" class="hidden" style="display:flex;flex-direction:column;gap:14px">
+    <header>
+      <h1 id="devName">CARTA SPORT</h1>
+      <div class="row" style="flex:none;gap:6px">
+        <span class="pill"><span id="batIcon">🔋</span><span id="bat">--%</span></span>
+        <span class="pill"><span id="linkDot" class="dot"></span><span id="linkTxt">--</span></span>
+      </div>
+    </header>
+
+    <div class="card dial" id="dial">
+      <svg viewBox="0 0 200 200">
+        <circle class="track" cx="100" cy="100" r="86" fill="none" stroke-width="12" stroke-linecap="round" stroke-dasharray="405.3 540.4"/>
+        <circle id="bar" class="bar" cx="100" cy="100" r="86" fill="none" stroke-width="12" stroke-linecap="round" stroke-dasharray="405.3 540.4" stroke-dashoffset="405.3"/>
+      </svg>
+      <div class="center">
+        <div class="big"><span id="curTemp">--</span><small id="unitLbl">°F</small></div>
+        <div id="state" class="state">Idle</div>
+        <div id="subline" class="sub">Target --</div>
+      </div>
+    </div>
+
+    <div class="stats">
+      <div class="stat"><b id="stTime">0:00</b><span>Remaining</span></div>
+      <div class="stat"><b id="stMode">--</b><span>Atomizer</span></div>
+      <div class="stat"><b id="stSleep">--</b><span>Status</span></div>
+    </div>
+
+    <div class="card">
+      <div class="seg" id="modeSeg">
+        <button data-mode="concentrate">Concentrate</button>
+        <button data-mode="flower">Flower</button>
+      </div>
+      <div class="ctl">
+        <label>Temperature <b id="tVal">--</b></label>
+        <div class="stepper">
+          <button data-step="t" data-d="-1">−</button>
+          <input id="tRange" type="range">
+          <button data-step="t" data-d="1">+</button>
+        </div>
+      </div>
+      <div class="ctl">
+        <label>Session length <b id="dVal">--</b></label>
+        <div class="stepper">
+          <button data-step="d" data-d="-1">−</button>
+          <input id="dRange" type="range">
+          <button data-step="d" data-d="1">+</button>
+        </div>
+      </div>
+      <div class="presets" id="quick"></div>
+    </div>
+
+    <div class="actions">
+      <button id="btnStart" class="primary go">Start heating</button>
+      <div class="row">
+        <button id="btnAdd">+10 s</button>
+        <button id="btnCancel" class="danger">Cancel</button>
+      </div>
+    </div>
+
+    <details class="card">
+      <summary>Device settings</summary>
+      <div class="set"><span>Child lock</span><button class="toggle" id="tgLock"></button></div>
+      <div class="set"><span>Power saving</span><button class="toggle" id="tgSave"></button></div>
+      <div class="set" style="flex-wrap:wrap"><span>Vibration <b id="vibVal" style="font-variant-numeric:tabular-nums">--</b></span>
+        <input id="vibRange" type="range" min="0" max="10" step="1" style="flex-basis:100%"></div>
+      <div class="set"><span>Units</span>
+        <div class="seg" id="unitSeg" style="width:140px"><button data-u="F">°F</button><button data-u="C">°C</button></div></div>
+      <div class="set"><span>Battery</span><span id="setBat" class="note">--</span></div>
+      <div class="set row">
+        <button id="btnDisconnect" class="ghost">Disconnect</button>
+        <button id="btnPowerOff" class="ghost" style="color:var(--danger)">Power off</button>
+      </div>
+    </details>
+    <p class="note">Unofficial controller. Not affiliated with Focus V.</p>
+  </section>
+</main>
+<div id="toast"></div>
+
+<script>
+'use strict';
+/* ---------- Protocol (Focus V CARTA Sport, same family as CARTA 2 / AERIS) ---------- */
+const SVC   = '1011123e-8535-b5a0-7140-a304d2495cb7';
+const NOTIFY= '1011123e-8535-b5a0-7140-a304d2495cb8';
+const WRITE = '1011123e-8535-b5a0-7140-a304d2495cb9';
+const UNIT_F = 0x11, UNIT_C = 0x22;
+const ACT_SET = 0x00, ACT_START = 0xA5, ACT_CANCEL = 0xAF, ACT_ADD = 0x66;
+
+// Limits from the official app (°F, seconds)
+const LIMITS = {
+  flower:      { tF:[300,460], dur:[120,240] },
+  concentrate: { tF:[365,635], dur:[20,120] },
+};
+const f2c = f => Math.round((f-32)/1.8);
+const c2f = c => Math.round(c*1.8+32);
+const hi = v => (v>>8)&0xFF, lo = v => v&0xFF;
+const fmtTime = s => `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`;
+
+function decodeStatus(b){
+  // 20 bytes: 99 14 [atom] [unit] [ranks] [remain] [tempHi tempLo] [fSet 2] [cSet 2] [batt] [led|bright] [fDur] [cDur] [lock|chg] [vib|save] [sleep] 99
+  if (b.length < 20 || b[0]!==0x99 || b[1]!==0x14 || b[19]!==0x99) return null;
+  if (b[3]!==UNIT_F && b[3]!==UNIT_C) return null;
+  const a = b[2];
+  return {
+    atomizer: a===0xA0 ? 'flower' : (a===0x60||a===0x50||a===0x40||a===0x30) ? 'concentrate' : 'none',
+    unit: b[3]===UNIT_C ? 'C' : 'F',
+    flowerRank: b[4]>>4, concRank: b[4]&15,
+    remaining: b[5],
+    temp: (b[6]<<8)|b[7],
+    flowerTemp: (b[8]<<8)|b[9],
+    concTemp: (b[10]<<8)|b[11],
+    battery: b[12],
+    ledRank: b[13]>>4, brightness: b[13]&15,
+    flowerDur: b[14], concDur: b[15],
+    locked: (b[16]>>4)===1, charging: (b[16]&15)===1,
+    vibration: b[17]>>4, powerSave: (b[17]&15)===1,
+    sleep: b[18],
+  };
+}
+
+/* ---------- State ---------- */
+let dev = null, chr = null, writeQ = Promise.resolve(), demo = null;
+let S = null;              // last decoded status
+let mode = 'concentrate';  // UI-selected mode
+let pending = null;        // user edits not yet confirmed by device {mode,temp,dur,until}
+let wantConnected = false;
+const store = { get(k,d){try{const v=localStorage.getItem('cs.'+k);return v==null?d:JSON.parse(v)}catch{return d}},
+                set(k,v){try{localStorage.setItem('cs.'+k,JSON.stringify(v))}catch{}} };
+
+/* ---------- BLE ---------- */
+const $ = id => document.getElementById(id);
+if (!navigator.bluetooth) $('bleWarn').classList.remove('hidden');
+
+async function connect(){
+  if (!navigator.bluetooth){ toast('Bluetooth not available in this browser'); return; }
+  try{
+    dev = await navigator.bluetooth.requestDevice({
+      filters:[{services:[SVC]},{namePrefix:'CARTA'}],
+      optionalServices:[SVC,'battery_service','device_information'],
+    });
+    dev.addEventListener('gattserverdisconnected', onDisconnect);
+    wantConnected = true;
+    await openGatt();
+  }catch(e){ if (e.name!=='NotFoundError') toast('Connect failed: '+e.message); }
+}
+
+async function openGatt(){
+  setLink('Connecting…', false);
+  const server = await dev.gatt.connect();
+  const svc = await server.getPrimaryService(SVC);
+  chr = await svc.getCharacteristic(WRITE);
+  const n = await svc.getCharacteristic(NOTIFY);
+  n.addEventListener('characteristicvaluechanged', e => onFrame(new Uint8Array(e.target.value.buffer)));
+  await n.startNotifications();
+  $('devName').textContent = dev.name || 'CARTA SPORT';
+  showApp();
+  setLink('Connected', true);
+  syncClock();
+}
+
+async function onDisconnect(){
+  setLink('Reconnecting…', false);
+  for (let i=0; wantConnected && i<6; i++){
+    try{ await openGatt(); return; }catch{ await new Promise(r=>setTimeout(r, 1000 + i*1000)); }
+  }
+  if (wantConnected) setLink('Disconnected', false);
+}
+
+function send(bytes){
+  const data = new Uint8Array(bytes);
+  if (demo) { demo.handle(data); return Promise.resolve(); }
+  if (!chr) { toast('Not connected'); return Promise.reject(new Error('not connected')); }
+  // serialize writes: Web Bluetooth rejects overlapping GATT operations
+  writeQ = writeQ.catch(()=>{}).then(() =>
+    chr.properties.writeWithoutResponse ? chr.writeValueWithoutResponse(data) : chr.writeValue(data));
+  return writeQ.catch(e => { toast('Write failed: '+e.message); throw e; });
+}
+
+function syncClock(){
+  const d = new Date(), y = d.getUTCFullYear();
+  send([0xDD,0x0C,hi(y),lo(y),d.getUTCMonth()+1,d.getUTCDate(),d.getUTCHours(),d.getUTCMinutes(),0,0,0,0xDD]);
+}
+
+/* ---------- Commands ---------- */
+function sessionCmd(action, extra=0, override={}){
+  if (!S) return;
+  const unit = S.unit==='C' ? UNIT_C : UNIT_F;
+  let fT=S.flowerTemp, cT=S.concTemp, fD=S.flowerDur, cD=S.concDur, fR=S.flowerRank, cR=S.concRank;
+  if (override.mode==='flower'){ fT=override.temp; fD=override.dur; fR=0; }
+  if (override.mode==='concentrate'){ cT=override.temp; cD=override.dur; cR=0; }
+  return send([0xCC,0x10,hi(fT),lo(fT),hi(cT),lo(cT),unit,hi(fD),lo(fD),hi(cD),lo(cD),fR,cR,action,extra,0xCC]);
+}
+function settingsCmd({powerOff=false, unit, lock, vibration, powerSave}={}){
+  if (!S) return;
+  unit = unit ?? S.unit; lock = lock ?? S.locked; vibration = vibration ?? S.vibration; powerSave = powerSave ?? S.powerSave;
+  return send([0x11,0x0C, powerOff?0xAF:0, unit==='C'?UNIT_C:UNIT_F, powerSave?2:8,
+               S.flowerRank, S.concRank, S.ledRank, lock?0xAF:0, vibration, powerSave?1:0, 0x11]);
+}
+
+/* ---------- UI ---------- */
+function showApp(){ $('connectView').classList.add('hidden'); $('appView').classList.remove('hidden'); }
+function showConnect(){ $('appView').classList.add('hidden'); $('connectView').classList.remove('hidden'); }
+function setLink(t,on){ $('linkTxt').textContent=t; $('linkDot').classList.toggle('on',on); }
+let toastT; function toast(m){ const t=$('toast'); t.textContent=m; t.classList.add('show'); clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove('show'),2600); }
+
+function limits(m){
+  const L = LIMITS[m], C = S && S.unit==='C';
+  return { t: C ? L.tF.map(f2c) : L.tF, d: L.dur, step: C ? 1 : 1 };
+}
+function curSet(m){
+  if (pending && pending.mode===m) return pending;
+  if (!S) return { temp: limits(m).t[0], dur: limits(m).d[0] };
+  return m==='flower' ? {temp:S.flowerTemp, dur:S.flowerDur} : {temp:S.concTemp, dur:S.concDur};
+}
+
+function renderControls(){
+  const L = limits(mode), v = curSet(mode), u = S ? S.unit : 'F';
+  document.querySelectorAll('#modeSeg button').forEach(b => b.classList.toggle('sel', b.dataset.mode===mode));
+  const tr=$('tRange'), dr=$('dRange');
+  tr.min=L.t[0]; tr.max=L.t[1]; dr.min=L.d[0]; dr.max=L.d[1];
+  if (document.activeElement!==tr) tr.value=v.temp;
+  if (document.activeElement!==dr) dr.value=v.dur;
+  $('tVal').textContent = `${v.temp}°${u}`;
+  $('dVal').textContent = fmtTime(+v.dur);
+  // quick presets (user-saved), per mode & unit
+  const q = store.get(`quick.${mode}.${u}`, null) || defaultQuick(mode,u);
+  const html = q.map((p,i)=>`<button class="ghost" data-q="${i}">${p.temp}° · ${fmtTime(p.dur)}</button>`).join('')
+    + `<button class="ghost" data-save="1">＋ Save current</button>`;
+  // only rebuild when changed, so taps aren't lost to a re-render mid-press
+  if ($('quick').dataset.html !== html){ $('quick').innerHTML = html; $('quick').dataset.html = html; }
+}
+function defaultQuick(m,u){
+  const base = m==='concentrate' ? [[450,45],[500,50],[550,40]] : [[350,180],[380,180],[410,150]];
+  return base.map(([f,d])=>({temp:u==='C'?f2c(f):f, dur:d}));
+}
+
+function render(){
+  if (!S) return;
+  const heating = S.remaining>0;
+  const tgt = S.atomizer==='flower' ? S.flowerTemp : S.concTemp;
+  const ready = heating && S.temp >= tgt - (S.unit==='C'?3:5);
+  $('curTemp').textContent = S.temp;
+  $('unitLbl').textContent = '°'+S.unit;
+  const st = $('state');
+  st.textContent = heating ? (ready ? 'Ready' : 'Heating') : (S.atomizer==='none' ? 'No atomizer' : 'Idle');
+  st.className = 'state' + (heating ? (ready?' ready':' hot') : '');
+  $('subline').textContent = heating ? `Target ${tgt}°${S.unit} · ${fmtTime(S.remaining)} left` : `Set ${tgt}°${S.unit}`;
+  $('dial').classList.toggle('heating', heating && !ready);
+  // dial: temp progress toward target while heating up, time remaining once ready, temp vs max when idle
+  const maxT = limits(S.atomizer==='none'?mode:S.atomizer).t[1];
+  let frac = heating ? (ready ? S.remaining / (S.atomizer==='flower'?S.flowerDur:S.concDur) : S.temp/tgt) : Math.min(S.temp/maxT,1);
+  $('bar').style.strokeDashoffset = 405.3 * (1 - Math.max(0,Math.min(1,frac)));
+  $('stTime').textContent = fmtTime(S.remaining);
+  $('stMode').textContent = S.atomizer==='none' ? 'None' : S.atomizer==='flower' ? 'Flower' : 'Conc.';
+  $('stSleep').textContent = S.locked ? 'Locked' : S.sleep>0 ? `Sleep ${Math.round(S.sleep*2.5)}s` : S.charging ? 'Charging' : 'Awake';
+  $('bat').textContent = S.battery+'%'; $('batIcon').textContent = S.charging ? '⚡' : '🔋';
+  $('setBat').textContent = S.battery+'%' + (S.charging?' · charging':'');
+  $('tgLock').classList.toggle('on', S.locked);
+  $('tgSave').classList.toggle('on', S.powerSave);
+  if (document.activeElement!==$('vibRange')) $('vibRange').value = S.vibration;
+  $('vibVal').textContent = S.vibration;
+  document.querySelectorAll('#unitSeg button').forEach(b=>b.classList.toggle('sel', b.dataset.u===S.unit));
+  $('btnStart').disabled = heating || S.atomizer==='none';
+  $('btnStart').textContent = S.atomizer==='none' ? 'Attach an atomizer' : heating ? (ready?'Ready – enjoy':'Heating…') : `Start ${S.atomizer==='flower'?'flower':'concentrate'}`;
+  $('btnAdd').disabled = !heating; $('btnCancel').disabled = !heating;
+  renderControls();
+}
+
+let firstFrame = true;
+function onFrame(b){
+  const s = decodeStatus(b);
+  if (!s) return;
+  const unitChanged = S && S.unit!==s.unit;
+  S = s;
+  if (firstFrame || unitChanged){ firstFrame=false; if (s.atomizer!=='none') mode=s.atomizer; pending=null; }
+  // drop local edits once the device reflects them (or after a timeout)
+  if (pending){
+    const dv = curDevice(pending.mode);
+    if ((dv.temp===pending.temp && dv.dur===pending.dur) || Date.now()>pending.until) pending=null;
+  }
+  render();
+}
+function curDevice(m){ return m==='flower' ? {temp:S.flowerTemp,dur:S.flowerDur} : {temp:S.concTemp,dur:S.concDur}; }
+
+/* edits: update locally at once, push to device (debounced) so its screen matches */
+let pushT;
+function edit(temp, dur){
+  const L = limits(mode);
+  temp = Math.max(L.t[0], Math.min(L.t[1], Math.round(temp)));
+  dur  = Math.max(L.d[0], Math.min(L.d[1], Math.round(dur)));
+  pending = { mode, temp, dur, until: Date.now()+4000 };
+  renderControls();
+  clearTimeout(pushT);
+  pushT = setTimeout(()=>{ if (S && S.remaining===0) sessionCmd(ACT_SET,0,pending); }, 350);
+}
+
+/* ---------- Wire up ---------- */
+$('btnConnect').onclick = connect;
+$('btnDemo').onclick = () => { demo = new Demo(); showApp(); setLink('Demo', true); $('devName').textContent='DEMO'; };
+document.querySelectorAll('#modeSeg button').forEach(b => b.onclick = () => { mode=b.dataset.mode; pending=null; renderControls(); });
+$('tRange').oninput = e => edit(+e.target.value, curSet(mode).dur);
+$('dRange').oninput = e => edit(curSet(mode).temp, +e.target.value);
+document.querySelectorAll('[data-step]').forEach(b => {
+  let rep;
+  const fire = () => { const v=curSet(mode), d=+b.dataset.d;
+    b.dataset.step==='t' ? edit(+v.temp + d*(S&&S.unit==='C'?1:5), v.dur) : edit(v.temp, +v.dur + d*5); };
+  b.addEventListener('pointerdown', () => { fire(); rep=setTimeout(function r(){ fire(); rep=setTimeout(r,90); },400); });
+  ['pointerup','pointerleave','pointercancel'].forEach(ev=>b.addEventListener(ev,()=>clearTimeout(rep)));
+});
+$('quick').onclick = e => {
+  const u = S?S.unit:'F', key=`quick.${mode}.${u}`;
+  const q = store.get(key,null) || defaultQuick(mode,u);
+  if (e.target.dataset.q!=null){ const p=q[+e.target.dataset.q]; edit(p.temp,p.dur); }
+  else if (e.target.dataset.save){ const v=curSet(mode); q.push({temp:+v.temp,dur:+v.dur}); store.set(key,q.slice(-6)); renderControls(); toast('Saved'); }
+};
+$('btnStart').onclick = () => {
+  if (!S) return;
+  if (S.atomizer!==mode){ toast(`Device has a ${S.atomizer} atomizer attached`); mode=S.atomizer; renderControls(); return; }
+  const v = curSet(mode);
+  sessionCmd(ACT_START, 0, {mode, temp:+v.temp, dur:+v.dur});
+  navigator.vibrate?.(30);
+};
+$('btnCancel').onclick = () => sessionCmd(ACT_CANCEL, 0);
+$('btnAdd').onclick = () => {
+  if (!S) return; const m=S.atomizer, v=curDevice(m);
+  sessionCmd(ACT_ADD, 10, {mode:m, temp:v.temp, dur:v.dur+10});
+};
+$('tgLock').onclick = () => S && settingsCmd({lock:!S.locked});
+$('tgSave').onclick = () => S && settingsCmd({powerSave:!S.powerSave});
+$('vibRange').onchange = e => settingsCmd({vibration:+e.target.value});
+document.querySelectorAll('#unitSeg button').forEach(b => b.onclick = () => S && S.unit!==b.dataset.u && settingsCmd({unit:b.dataset.u}));
+$('btnPowerOff').onclick = () => { if (confirm('Power off the device?')) { wantConnected=false; settingsCmd({powerOff:true}); } };
+$('btnDisconnect').onclick = () => { wantConnected=false; if (dev?.gatt?.connected) dev.gatt.disconnect(); demo?.stop(); demo=null; S=null; firstFrame=true; showConnect(); };
+document.addEventListener('visibilitychange', () => { if (!document.hidden && dev && wantConnected && !dev.gatt.connected) onDisconnect(); });
+
+/* ---------- Demo device: speaks the same byte protocol ---------- */
+class Demo{
+  constructor(){
+    this.s = {atom:0x60, unit:UNIT_F, fR:0,cR:0, rem:0, temp:78, fT:380,cT:500, bat:82, fD:180,cD:45, lock:0,chg:0, vib:5,save:0, phase:0};
+    this.timer = setInterval(()=>this.tick(), 500);
+    this.tick();
+  }
+  stop(){ clearInterval(this.timer); }
+  handle(b){
+    const s=this.s;
+    if (b[0]===0xCC){
+      s.fT=(b[2]<<8)|b[3]; s.cT=(b[4]<<8)|b[5]; s.fD=(b[7]<<8)|b[8]; s.cD=(b[9]<<8)|b[10];
+      if (b[13]===ACT_START){ s.phase=1; s.rem = s.atom===0xA0?s.fD:s.cD; }
+      if (b[13]===ACT_CANCEL){ s.phase=0; s.rem=0; }
+      if (b[13]===ACT_ADD && s.phase) s.rem=Math.min(255,s.rem+b[14]);
+    }
+    if (b[0]===0x11){
+      if (b[3]!==s.unit){ const toC=b[3]===UNIT_C, cv=toC?f2c:c2f; s.fT=cv(s.fT); s.cT=cv(s.cT); s.temp=cv(s.temp); s.unit=b[3]; }
+      s.lock=b[8]?1:0; s.vib=b[9]; s.save=b[10];
+      if (b[2]===0xAF){ toast('Demo: device powered off'); }
+    }
+    this.tick();
+  }
+  tick(){
+    const s=this.s, tgt=s.atom===0xA0?s.fT:s.cT, room=s.unit===UNIT_C?26:78;
+    if (s.phase){ s.temp += Math.max(1, Math.round((tgt-s.temp)*0.15)); if (s.temp>=tgt-3){ s.temp=tgt; s.rem=Math.max(0,s.rem-0.5); if(!s.rem) s.phase=0; } }
+    else s.temp = Math.max(room, s.temp - Math.round((s.temp-room)*0.05) - (s.temp>room?1:0));
+    const r=Math.ceil(s.rem);
+    onFrame(new Uint8Array([0x99,0x14,s.atom,s.unit,(s.fR<<4)|s.cR,r,hi(s.temp),lo(s.temp),hi(s.fT),lo(s.fT),hi(s.cT),lo(s.cT),
+      s.bat,0x08,s.fD,s.cD,(s.lock<<4)|s.chg,(s.vib<<4)|s.save,0,0x99]));
+  }
+}
+</script>
+</body>
+</html>
