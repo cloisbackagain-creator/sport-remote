@@ -48,31 +48,12 @@ header h1{font-size:16px;margin:0;flex:1;white-space:nowrap;overflow:hidden;text
 .hero .top{display:flex;justify-content:space-between;align-items:flex-end;gap:10px}
 .hero .big{font-size:clamp(40px,13vw,54px);font-weight:750;line-height:1;display:flex;align-items:baseline;gap:2px}
 .hero .big small{font-size:.4em;color:var(--dim);font-weight:600}
-.live{margin-left:10px;align-self:center;display:inline-flex;align-items:center;gap:6px;font-size:16px;font-weight:700;color:var(--text);
-  background:var(--card2);border:1px solid var(--line);border-radius:99px;padding:4px 10px;transition:opacity .3s,transform .3s}
-.live i{width:8px;height:8px;border-radius:50%;background:var(--heat);animation:pulse 1.2s ease-in-out infinite}
-.live.ready i{background:var(--accent)}
-.live.off{opacity:0;transform:translateX(-6px) scale(.9);pointer-events:none}
-.live em{font-style:normal;font-size:11px;color:var(--dim);font-weight:600}
-@keyframes pulse{50%{opacity:.35}}
 .hero .right{text-align:right}
 .hero .time{font-size:22px;font-weight:700;line-height:1}
 .state{margin-top:5px;font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--dim)}
 .state.hot{color:var(--heat)}.state.ready{color:var(--accent)}
-.curve{position:relative}
-.curve svg{display:block;width:100%;height:92px;touch-action:none}
-.curve .cap{display:flex;justify-content:space-between;font-size:11px;color:var(--dim);margin-top:2px;min-height:14px}
-.curve .cap b{color:var(--text);font-weight:600}
-.curve .grid{stroke:var(--line);stroke-width:1}
-.curve .tgt{stroke:var(--dim);stroke-width:1;stroke-dasharray:3 4}
-.curve .line{fill:none;stroke:var(--accent);stroke-width:2;stroke-linejoin:round;stroke-linecap:round}
-.curve .area{fill:url(#curveFill)}
-.curve .axis{fill:var(--dim);font-size:10px;font-variant-numeric:tabular-nums}
-.curve .mark{fill:var(--accent);stroke:var(--card);stroke-width:2}
-.curve .xh{stroke:var(--dim);stroke-width:1}
-.curve .empty{fill:var(--dim);font-size:12px}
-.curve.past .line{stroke:var(--dim)}
-.curve.past .mark{fill:var(--dim)}
+.lastline{font-size:12px;color:var(--dim);min-height:16px}
+.lastline b{color:var(--text);font-weight:600}
 .prog{height:4px;border-radius:4px;background:var(--card2);overflow:hidden}
 .prog i{display:block;height:100%;width:0;background:var(--accent);transition:width .5s,background .4s}
 .prog.hot i{background:var(--heat)}
@@ -116,13 +97,6 @@ input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;bac
 .actions .row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .actions .row3{grid-template-columns:1fr 1fr 1fr}
 .actions .row3 button{padding:11px 4px;font-size:14px}
-/* skipped heat-up banner */
-.banner{position:fixed;left:50%;top:calc(env(safe-area-inset-top) + 10px);transform:translate(-50%,-160%);width:min(440px,calc(100vw - 24px));
-  background:#3a2414;border:1px solid #7a4318;color:var(--text);border-radius:14px;padding:12px;z-index:8;transition:transform .3s;font-size:14px}
-.banner.show{transform:translate(-50%,0)}
-.banner b{color:var(--heat)}
-.banner .row{display:flex;gap:8px;margin-top:10px}
-.banner .row button{flex:1;padding:9px}
 /* stats */
 .kv{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;font-size:14px}
 .kv span:nth-child(odd){color:var(--dim)}
@@ -178,7 +152,6 @@ input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;bac
 @media (max-height:640px){
   .hero{padding:9px 12px 8px;gap:6px}
   .hero .big{font-size:40px}
-  .curve svg{height:64px}
   .go{padding:12px}
   .ptiles button{padding:5px 2px 4px}.ptiles .pt{font-size:15px}
 }
@@ -186,7 +159,6 @@ input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;bac
 @media (max-height:760px){
   input[type=range].opt{display:none}
   .adj{padding-bottom:8px}
-  .curve svg{height:80px}
 }
 </style>
 </head>
@@ -214,17 +186,14 @@ input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;bac
         <div>
           <div class="lbl" id="setLbl">Set</div>
           <div class="big num"><span id="setTemp">--</span><small class="unit">°F</small>
-            <span class="live off num" id="liveChip"><i></i><span><span id="liveTemp">--</span>°</span><em>live</em></span></div>
+            </div>
         </div>
         <div class="right">
           <div class="time num" id="timeLine">--</div>
           <div id="state" class="state">Idle</div>
         </div>
       </div>
-      <div class="curve" id="curveWrap">
-        <svg id="curve" aria-label="Heating curve"></svg>
-        <div class="cap"><span id="curveTitle">Heating curve</span><span id="curveTip"></span></div>
-      </div>
+      <div class="lastline num" id="lastLine"></div>
       <div class="prog" id="prog"><i id="progBar"></i></div>
       <div class="facts"><span id="factAtom">--</span><span id="factStatus">--</span></div>
     </div>
@@ -376,10 +345,6 @@ input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;bac
   <p class="note" style="margin-top:8px">Unofficial controller. Not affiliated with Focus V.</p>
 </section>
 
-<div class="banner" id="skipBanner" role="alert">
-  <div id="skipText"></div>
-  <div class="row"><button class="primary" id="btnRestart">Restart session</button><button class="ghost" id="btnSkipDismiss">Dismiss</button></div>
-</div>
 <div id="toast"></div>
 
 <script>
@@ -686,24 +651,22 @@ function render(){
   if (S.atomizer!=='none' && mode!==S.atomizer){ mode = S.atomizer; pending = null; presetMode = 'use'; }  // follow atomizer swaps
   const runMode = S.atomizer==='none' ? mode : S.atomizer;
   const active = curDevice(runMode), tgt = active.temp;
-  const ready = heating && S.temp >= tgt - (S.unit==='C'?3:5);
+  // The device doesn't report a live coil temperature over Bluetooth (status bytes 6-7 are the
+  // session target), and its countdown runs from the moment a session starts, heat-up included.
   const shown = heating ? active : curSet(mode);
   document.querySelectorAll('.unit').forEach(e => e.textContent = '°'+S.unit);
-  // The coil temperature is only measured while it's powered (via its resistance), so the
-  // live reading is shown during a session and hidden when idle.
-  $('liveTemp').textContent = S.temp;
-  $('liveChip').className = 'live num' + (heating ? (ready ? ' ready' : '') : ' off');
   const st = $('state');
-  st.textContent = heating ? (ready ? 'Ready' : 'Heating') : (S.atomizer==='none' ? 'No atomizer' : 'Idle');
-  st.className = 'state' + (heating ? (ready?' ready':' hot') : '');
+  st.textContent = heating ? 'Session on' : (S.atomizer==='none' ? 'No atomizer' : 'Idle');
+  st.className = 'state' + (heating ? ' hot' : '');
   $('setLbl').textContent = heating ? 'Target' : 'Set';
   $('setTemp').textContent = shown.temp;
   $('timeLine').textContent = heating ? `${fmtTime(S.remaining)} left` : fmtTime(+shown.dur);
-  drawCurve();
-  // progress: heat-up toward target, then time remaining
-  const frac = heating ? (ready ? S.remaining/active.dur : S.temp/tgt) : 0;
+  renderLastLine(heating);
+  // progress: share of the session elapsed
+  const total = (curve && !curve.done && curve.total) || active.dur || 1;
+  const frac = heating ? 1 - S.remaining/total : 0;
   $('progBar').style.width = (Math.max(0,Math.min(1,frac))*100)+'%';
-  $('prog').classList.toggle('hot', heating && !ready);
+  $('prog').classList.toggle('hot', heating);
   $('factAtom').textContent = S.atomizer==='none' ? 'No atomizer' : (S.atomizer==='flower' ? 'Flower' : 'Concentrate') + ' atomizer';
   $('factStatus').textContent = S.locked ? '🔒 Locked' : S.sleep>0 && S.sleep*2.5<=60 ? `Sleeping in ${Math.round(S.sleep*2.5)}s` : S.charging ? '⚡ Charging' : 'Awake';
   $('bat').textContent = S.battery+'%'; $('batIcon').textContent = S.charging ? '⚡' : '🔋';
@@ -742,58 +705,38 @@ function renderLights(){
   document.querySelectorAll('#swatches input').forEach((inp,i) => { if (document.activeElement!==inp) inp.value = rgbHex(p.colors[i]); });
 }
 
-/* ---------- Heating curve ----------
-   Status frames arrive ~3×/s; while a session runs we log (seconds, temp). The last
-   session is kept (and remembered across reloads) until the next one starts. */
-let curve = store.get('lastCurve', null);   // {start, target, unit, ready, samples:[[t,v]], done}
-let hoverT = null;
+/* ---------- Session tracking ----------
+   Remembers when the current/last session started and ended, for the progress bar and the
+   "last session" line (kept across reloads). */
+let curve = store.get('lastCurve', null);   // {start, end, target, unit, mode, dur, total, done}
 function recordCurve(){
   const heating = S.remaining > 0, now = Date.now();
   if (heating && (!curve || curve.done)){
     const m = S.atomizer==='none' ? mode : S.atomizer;
-    const prev = curve;
-    curve = { start: now, target: curDevice(m).temp, unit: S.unit, ready: null, samples: [], done: false,
-              mode: m, dur: curDevice(m).dur, prevEnd: prev && prev.end, diag: diagOn ? [] : null, analytics: [] };
+    curve = { start: now, target: curDevice(m).temp, unit: S.unit, done: false, mode: m, dur: curDevice(m).dur,
+              total: S.remaining, diag: diagOn ? [] : null, analytics: [] };
   }
   if (!curve || curve.done) return;
+  curve.total = Math.max(curve.total || 0, S.remaining);   // +10 s extends it
   if (!heating){
-    curve.done = true; curve.end = now; hideSkip();
+    curve.done = true; curve.end = now;
     if (curve.diag) saveDiag(curve);
     const { diag, analytics, ...light } = curve;   // keep the stored copy small
-    store.set('lastCurve', light); return;
-  }
-  const t = (now - curve.start)/1000, last = curve.samples[curve.samples.length-1];
-  if (!last || t - last[0] >= 0.3) curve.samples.push([+t.toFixed(1), S.temp]);
-  curve.tEnd = Math.max(curve.tEnd || 0, t + S.remaining);
-  if (curve.ready==null && S.temp >= curve.target - (S.unit==='C'?3:5)) curve.ready = +t.toFixed(1);
-  checkSkipped(t);
-}
-
-/* Skipped heat-up: the device says it's at temperature within ~2.5 s of starting. A real
-   heat-up from cold takes far longer, so either the coil was still hot or the reading is wrong. */
-function checkSkipped(t){
-  const c = curve;
-  if (c.skipChecked || t > 6) { c.skipChecked = true; return; }
-  // Temperature only: byte 2 of the 0xDD analytics stream is not a reliable "reached" flag
-  // (it was set at 114°F on a real device), so it is recorded but not used here.
-  if (t <= 2.5 && c.ready!=null){
-    c.skipChecked = true; c.skipped = +t.toFixed(1);
-    const recent = c.prevEnd && (c.start - c.prevEnd) < 120000;
-    $('skipText').innerHTML = `<b>Heat-up skipped.</b> The device said it was ready ${c.skipped < 1 ? 'immediately' : `after ${c.skipped}s`}. `
-      + (recent ? 'It may still be hot from your last session. If it isn\'t, try restarting.' : 'That\'s too fast from cold, so its reading is probably wrong. Try restarting the session.');
-    $('skipBanner').classList.add('show');
-    navigator.vibrate?.([40,60,40]);
+    store.set('lastCurve', light);
   }
 }
-function hideSkip(){ $('skipBanner').classList.remove('show'); }
-$('btnSkipDismiss').onclick = hideSkip;
-$('btnRestart').onclick = () => {
-  hideSkip(); if (!S || !curve) return;
-  const m = curve.mode, v = { temp: curve.target, dur: curve.dur };
-  sessionCmd(ACT_CANCEL, 0);
-  setTimeout(() => sessionCmd(ACT_START, 0, { mode: m, ...v }), 1500);
-  toast('Restarting session…');
-};
+function ago(ms){
+  const m = Math.round(ms/60000);
+  return m < 1 ? 'just now' : m < 60 ? `${m} min ago` : m < 1440 ? `${Math.round(m/60)} h ago` : `${Math.round(m/1440)} d ago`;
+}
+function renderLastLine(heating){
+  const c = curve, el = $('lastLine');
+  if (heating && c && !c.done){ el.innerHTML = `Started ${ago(Date.now()-c.start)} · ends in <b>${fmtTime(S.remaining)}</b>`; return; }
+  if (c && c.done && c.end){
+    el.innerHTML = `Last session <b>${c.target}°${c.unit}</b> · ${fmtTime(Math.round((c.end-c.start)/1000))} · ${ago(Date.now()-c.end)}`; return;
+  }
+  el.textContent = 'No sessions yet';
+}
 
 /* ---------- Diagnostics ----------
    When enabled, every frame received during a session is kept (with its time offset) along with
@@ -802,7 +745,7 @@ let diagOn = store.get('diag', false);
 function saveDiag(c){
   const list = store.get('diagSessions', []);
   list.push({ start: new Date(c.start).toISOString(), mode: c.mode, target: c.target, unit: c.unit, durationSet: c.dur,
-              readyAt: c.ready, skippedHeatup: c.skipped ?? null, samples: c.samples, analytics: c.analytics, frames: c.diag });
+              analytics: c.analytics, frames: c.diag });
   store.set('diagSessions', list.slice(-10));
   renderDiagCount();
 }
@@ -946,62 +889,7 @@ function onRecal(b){
 $('btnRecal').onclick = recalibrate;
 $('btnHistory').onclick = loadHistory;
 $('btnStats').onclick = () => { renderStats(); openSheet('statsSheet'); };
-function drawCurve(){
-  const svg = $('curve'), W = svg.clientWidth || 300, H = svg.clientHeight || 92;
-  const c = curve, pts = c ? c.samples : [];
-  $('curveWrap').classList.toggle('past', !!(c && c.done));
-  if (!c || pts.length < 2 || (S && c.unit !== S.unit)){
-    svg.innerHTML = `<line class="grid" x1="0" x2="${W}" y1="${H-14}" y2="${H-14}"/>
-      <text class="empty" x="${W/2}" y="${H/2}" text-anchor="middle">Start a session to see its heating curve</text>`;
-    $('curveTitle').textContent = 'Heating curve'; $('curveTip').textContent = '';
-    return;
-  }
-  const padL = 34, padR = 6, padT = 6, padB = 14;
-  const tMax = c.done ? pts[pts.length-1][0] : Math.max(pts[pts.length-1][0], c.tEnd || 0, 20);
-  const vals = pts.map(p=>p[1]);
-  const lo = Math.min(...vals, c.target) , hiV = Math.max(...vals, c.target);
-  const span = Math.max(hiV - lo, 20), yLo = lo - span*0.08, yHi = hiV + span*0.12;
-  const X = t => padL + (W-padL-padR) * t / tMax;
-  const Y = v => padT + (H-padT-padB) * (1 - (v - yLo)/(yHi - yLo));
-  const d = pts.map((p,i)=>`${i?'L':'M'}${X(p[0]).toFixed(1)},${Y(p[1]).toFixed(1)}`).join('');
-  const base = H - padB;
-  let out = `<defs><linearGradient id="curveFill" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="${c.done?'#8b959b':'#19c3a5'}" stop-opacity=".22"/><stop offset="1" stop-color="${c.done?'#8b959b':'#19c3a5'}" stop-opacity="0"/></linearGradient></defs>
-    <line class="grid" x1="${padL}" x2="${W-padR}" y1="${base}" y2="${base}"/>
-    <line class="tgt" x1="${padL}" x2="${W-padR}" y1="${Y(c.target)}" y2="${Y(c.target)}"/>
-    <text class="axis" x="${padL-5}" y="${Y(c.target)+3}" text-anchor="end">${c.target}°</text>
-    <text class="axis" x="${padL-5}" y="${Math.min(base-2, Y(vals[0])+3)}" text-anchor="end">${vals[0]}°</text>
-    <text class="axis" x="${padL}" y="${H-2}">0:00</text>
-    <text class="axis" x="${W-padR}" y="${H-2}" text-anchor="end">${fmtTime(Math.round(tMax))}</text>
-    <path class="area" d="${d}L${X(pts[pts.length-1][0]).toFixed(1)},${base}L${X(pts[0][0]).toFixed(1)},${base}Z"/>
-    <path class="line" d="${d}"/>`;
-  if (c.ready!=null && c.ready <= tMax) out += `<circle class="mark" cx="${X(c.ready)}" cy="${Y(c.target)}" r="4"/>`;
-  // hover / touch readout
-  let tip = '';
-  if (hoverT!=null){
-    const p = pts.reduce((a,b)=>Math.abs(b[0]-hoverT)<Math.abs(a[0]-hoverT)?b:a);
-    out += `<line class="xh" x1="${X(p[0])}" x2="${X(p[0])}" y1="${padT}" y2="${base}"/><circle class="mark" cx="${X(p[0])}" cy="${Y(p[1])}" r="4"/>`;
-    tip = `<b>${p[1]}°${c.unit}</b> at ${fmtTime(Math.round(p[0]))}`;
-  }
-  svg.innerHTML = out;
-  const peak = Math.max(...vals);
-  $('curveTitle').innerHTML = (c.done ? 'Last session' : 'Heating curve')
-    + (c.ready!=null ? ` · ready in <b>${fmtTime(Math.round(c.ready))}</b>` : '')
-    + (c.done ? ` · peak <b>${peak}°</b>` : '');
-  $('curveTip').innerHTML = tip;
-}
-function curveHover(e){
-  if (!curve || curve.samples.length<2) return;
-  const r = $('curve').getBoundingClientRect(), padL = 34, padR = 6;
-  const last = curve.samples[curve.samples.length-1][0];
-  const tMax = curve.done ? last : Math.max(last, curve.tEnd || 0, 20);
-  hoverT = Math.max(0, Math.min(tMax, (e.clientX - r.left - padL) / (r.width - padL - padR) * tMax));
-  drawCurve();
-}
-$('curve').addEventListener('pointermove', curveHover);
-$('curve').addEventListener('pointerdown', curveHover);
-$('curve').addEventListener('pointerleave', () => { hoverT = null; drawCurve(); });
-window.addEventListener('resize', () => S && drawCurve());
+
 
 let firstFrame = true;
 function onFrame(b){
