@@ -1051,9 +1051,19 @@ function editLed(change){
   Object.assign(p, change);
   ledPendingUntil = Date.now() + 2500;
   renderLights();
-  clearTimeout(ledT);
+  clearTimeout(ledT); clearTimeout(ledRefreshT);
   ledT = setTimeout(() => ledCmd(slot, p), 300);
+  // The Carta stores brightness/speed/animation but only applies them when a light preset is
+  // selected (colors apply live). Re-select it, via a neighbouring slot so the change registers.
+  if (('top' in change || 'base' in change || 'speed' in change || 'pattern' in change) && S.ledRank === slot){
+    const other = slot === 5 ? 4 : slot + 1;
+    ledRefreshT = setTimeout(() => {
+      settingsCmd({ledRank: other});
+      setTimeout(() => settingsCmd({ledRank: slot}), 350);
+    }, 700);
+  }
 }
+let ledRefreshT;
 
 /* ---------- Sheets ---------- */
 function openSheet(id){ closeSheets(); $(id).classList.add('show'); $('scrim').classList.add('show'); }
