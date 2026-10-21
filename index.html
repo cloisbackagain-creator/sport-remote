@@ -282,12 +282,8 @@ input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;bac
       <button data-p="3">Disco</button><button data-p="4">Blink</button>
     </div>
   </div>
-  <div class="set col"><div><span>Speed</span><b class="num" id="spdVal">--</b></div>
-    <input id="spdRange" type="range" min="1" max="5" step="1"></div>
-  <div class="set col"><div><span>Glass brightness</span><b class="num" id="topVal">--</b></div>
-    <input id="topRange" type="range" min="0" max="10" step="1"></div>
-  <div class="set col"><div><span>Base brightness</span><b class="num" id="baseVal">--</b></div>
-    <input id="baseRange" type="range" min="0" max="10" step="1"></div>
+  <div class="set col"><div><span>Brightness</span><b class="num" id="briVal">--</b></div>
+    <input id="briRange" type="range" min="1" max="10" step="1" aria-label="Brightness"></div>
   <div class="set col"><div><span>Colors</span></div>
     <div class="swatches" id="swatches"></div></div>
   <p class="note" id="ledNote" style="margin-top:8px">Changes are saved to the selected preset on the device.</p>
@@ -567,11 +563,15 @@ function sessionCmd(action, extra=0, override={}){
   if (override.mode==='concentrate'){ cT=override.temp; cD=override.dur; cR=matchRank('concentrate',cT,cD); }
   return send([0xCC,0x10,hi(fT),lo(fT),hi(cT),lo(cT),unit,hi(fD),lo(fD),hi(cD),lo(cD),fR,cR,action,extra,0xCC]);
 }
-function settingsCmd({powerOff=false, unit, lock, vibration, powerSave, ledRank}={}){
+// byte 4 is the device-wide light/screen brightness (status byte 13 low nibble). The official app
+// forces 8 (or 2 with power saving); we keep whatever is set. Per-preset LED brightness/speed are
+// stored by the Sport but have no visible effect.
+function settingsCmd({powerOff=false, unit, lock, vibration, powerSave, ledRank, brightness}={}){
   if (!S) return;
   unit = unit ?? S.unit; lock = lock ?? S.locked; vibration = vibration ?? S.vibration;
   powerSave = powerSave ?? S.powerSave; ledRank = ledRank ?? S.ledRank;
-  return send([0x11,0x0C, powerOff?0xAF:0, unit==='C'?UNIT_C:UNIT_F, powerSave?2:8,
+  brightness = brightness ?? (S.brightness || 8);
+  return send([0x11,0x0C, powerOff?0xAF:0, unit==='C'?UNIT_C:UNIT_F, brightness,
                S.flowerRank, S.concRank, ledRank, lock?0xAF:0, vibration, powerSave?1:0, 0x11]);
 }
 
@@ -727,14 +727,13 @@ function renderLights(){
   }).join(''));
   const slot = ledEditSlot ?? S.ledRank;
   const p = LEDS[slot];
-  const editor = [$('patSeg'),$('spdRange'),$('topRange'),$('baseRange')];
+  if (document.activeElement!==$('briRange')) $('briRange').value = S.brightness;
+  $('briVal').textContent = S.brightness;
+  const editor = [$('patSeg')];
   editor.forEach(e => e.closest('.set').style.opacity = p ? 1 : .4);
   $('ledNote').textContent = p ? `Editing preset ${slot}. Changes save to the device.` : 'Waiting for the device to send its light presets…';
   if (!p) return;
   document.querySelectorAll('#patSeg button').forEach(b => b.classList.toggle('sel', +b.dataset.p===p.pattern));
-  const setR = (id, v, lbl) => { if (document.activeElement!==$(id)) $(id).value=v; $(lbl).textContent=v; };
-  setR('spdRange', p.speed, 'spdVal'); setR('topRange', p.top, 'topVal'); setR('baseRange', p.base, 'baseVal');
-  $('spdRange').disabled = p.pattern===5;
   setHTML($('swatches'), p.colors.map((c,i)=>`<label><input type="color" data-c="${i}" value="${rgbHex(c)}">${i+1}</label>`).join(''));
   // keep swatches in sync with device without rebuilding while the picker is open
   document.querySelectorAll('#swatches input').forEach((inp,i) => { if (document.activeElement!==inp) inp.value = rgbHex(p.colors[i]); });
@@ -1055,7 +1054,7 @@ function editLed(change){
   ledT = setTimeout(() => ledCmd(slot, p), 300);
   // The Carta stores brightness/speed/animation but only applies them when a light preset is
   // selected (colors apply live). Re-select it, via a neighbouring slot so the change registers.
-  if (('top' in change || 'base' in change || 'speed' in change || 'pattern' in change) && S.ledRank === slot){
+  if ('pattern' in change && S.ledRank === slot){
     const other = slot === 5 ? 4 : slot + 1;
     ledRefreshT = setTimeout(() => {
       settingsCmd({ledRank: other});
@@ -1136,9 +1135,9 @@ $('ledChips').onclick = e => {
   renderLights();
 };
 $('patSeg').onclick = e => { const t=e.target.closest('button[data-p]'); if (t) editLed({pattern:+t.dataset.p}); };
-$('spdRange').oninput  = e => editLed({speed:+e.target.value});
-$('topRange').oninput  = e => editLed({top:+e.target.value});
-$('baseRange').oninput = e => editLed({base:+e.target.value});
+let briT;
+$('briRange').oninput = e => { $('briVal').textContent = e.target.value; clearTimeout(briT);
+  briT = setTimeout(() => { store.set('brightness', +e.target.value); settingsCmd({brightness:+e.target.value}); }, 200); };
 $('swatches').addEventListener('input', e => {
   const i = e.target.dataset.c; if (i==null) return;
   const p = LEDS[ledEditSlot ?? S.ledRank]; if (!p) return;
@@ -1147,7 +1146,9 @@ $('swatches').addEventListener('input', e => {
 });
 // settings
 $('tgLock').onclick = () => S && settingsCmd({lock:!S.locked});
-$('tgSave').onclick = () => S && settingsCmd({powerSave:!S.powerSave});
+$('tgSave').onclick = () => { if (!S) return; const on = !S.powerSave;
+  if (on && S.brightness > 2) store.set('brightness', S.brightness);
+  settingsCmd({powerSave:on, brightness: on ? 2 : store.get('brightness', 8)}); };
 $('vibRange').onchange = e => settingsCmd({vibration:+e.target.value});
 $('vibRange').oninput = e => $('vibVal').textContent = e.target.value;
 document.querySelectorAll('#unitSeg button').forEach(b => b.onclick = () => S && S.unit!==b.dataset.u && settingsCmd({unit:b.dataset.u}));
@@ -1211,7 +1212,7 @@ class Demo{
     if (b[0]===0xC1) setTimeout(()=>onFrame(new Uint8Array([0xC2,8,1,2,0x7c,2,0x05,0xC2])), 1200);
     if (b[0]===0x11){
       if (b[3]!==s.unit){ const toC=b[3]===UNIT_C, cv=toC?f2c:c2f; s.fT=cv(s.fT); s.cT=cv(s.cT); s.temp=cv(s.temp); s.unit=b[3]; }
-      s.lock=b[8]?1:0; s.vib=b[9]; s.save=b[10]; s.led=b[7];
+      s.lock=b[8]?1:0; s.vib=b[9]; s.save=b[10]; s.led=b[7]; s.bri=b[4];
       if (b[2]===0xAF){ toast('Demo: device powered off'); }
     }
     const slot = {0xEE:1,0xE1:2,0xE2:3,0xE3:4,0xE4:5}[b[0]];
@@ -1229,7 +1230,7 @@ class Demo{
     } else s.real = Math.max(room, s.real - (s.real-room)*0.04);           // cools; reported value stays stale
     const r=Math.ceil(s.rem);
     onFrame(new Uint8Array([0x99,0x14,s.atom,s.unit,(s.fR<<4)|s.cR,r,hi(s.temp),lo(s.temp),hi(s.fT),lo(s.fT),hi(s.cT),lo(s.cT),
-      s.bat,(s.led<<4)|8,s.fD,s.cD,(s.lock<<4)|s.chg,(s.vib<<4)|s.save,0,0x99]));
+      s.bat,(s.led<<4)|(s.bri??8),s.fD,s.cD,(s.lock<<4)|s.chg,(s.vib<<4)|s.save,0,0x99]));
   }
 }
 </script>
