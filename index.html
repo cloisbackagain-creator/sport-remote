@@ -616,12 +616,20 @@ function send(bytes){
   // serialize writes: Web Bluetooth rejects overlapping GATT operations
   // Browsers differ: Focus V's V Browser has no chr.properties (the flag sits on the
   // characteristic itself, which the official app also checks), and some Bluefy versions lack
-  // writeValueWithoutResponse. Fall back to the long-supported writeValue, retry once on failure.
+  // writeValueWithoutResponse. Like the official app, pass a plain ArrayBuffer (V Browser can
+  // reject typed arrays), and retry a couple of times before reporting a failure.
+  const buf = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength);
   const noResp = !!(chr.writeWithoutResponse || (chr.properties && chr.properties.writeWithoutResponse));
-  const write = () => noResp && typeof chr.writeValueWithoutResponse === 'function'
-    ? chr.writeValueWithoutResponse(data) : chr.writeValue(data);
-  writeQ = writeQ.catch(()=>{}).then(() => write().catch(() => new Promise(r => setTimeout(r, 150)).then(() => chr.writeValue(data))));
-  return writeQ.catch(e => { toast(`Write failed: ${e.name||''} ${e.message}`.trim()); throw e; });
+  const write = useResp => !useResp && noResp && typeof chr.writeValueWithoutResponse === 'function'
+    ? chr.writeValueWithoutResponse(buf) : chr.writeValue(buf);
+  const wait = ms => new Promise(r => setTimeout(r, ms));
+  writeQ = writeQ.catch(()=>{}).then(() => write(false)
+    .catch(() => wait(150).then(() => write(true)))
+    .catch(() => wait(400).then(() => write(false))));
+  return writeQ.catch(e => {
+    const why = e && (e.message || e.name) ? `${e.name||''} ${e.message||''}`.trim() : String(e ?? 'no reason given');
+    toast(`Write failed (${why}). Try again`); throw e;
+  });
 }
 
 // The clock sync also makes the device send its session and LED presets
