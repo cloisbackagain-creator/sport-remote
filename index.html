@@ -48,6 +48,13 @@ header h1{font-size:16px;margin:0;flex:1;white-space:nowrap;overflow:hidden;text
 .hero .top{display:flex;justify-content:space-between;align-items:flex-end;gap:10px}
 .hero .big{font-size:clamp(40px,13vw,54px);font-weight:750;line-height:1;display:flex;align-items:baseline;gap:2px}
 .hero .big small{font-size:.4em;color:var(--dim);font-weight:600}
+.live{margin-left:10px;align-self:center;display:inline-flex;align-items:center;gap:6px;font-size:16px;font-weight:700;color:var(--text);
+  background:var(--card2);border:1px solid var(--line);border-radius:99px;padding:4px 10px;transition:opacity .3s,transform .3s}
+.live i{width:8px;height:8px;border-radius:50%;background:var(--heat);animation:pulse 1.2s ease-in-out infinite}
+.live em{font-style:normal;font-size:11px;color:var(--dim);font-weight:600}
+.live.off{opacity:0;transform:translateX(-6px) scale(.9);pointer-events:none}
+@keyframes pulse{50%{opacity:.35}}
+.state.ready{color:var(--accent)}
 .hero .right{text-align:right}
 .hero .time{font-size:22px;font-weight:700;line-height:1}
 .state{margin-top:5px;font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--dim)}
@@ -186,6 +193,7 @@ input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;bac
         <div>
           <div class="lbl" id="setLbl">Set</div>
           <div class="big num"><span id="setTemp">--</span><small class="unit">°F</small>
+            <span class="live off num" id="liveChip"><i></i><span><span id="liveTemp">--</span>°</span><em>now</em></span>
             </div>
         </div>
         <div class="right">
@@ -334,6 +342,8 @@ input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;bac
   <div class="set"><span>Battery</span><span id="setBat" class="note">--</span></div>
   <div class="set"><div><div>Recalibrate atomizer</div><div class="note" style="text-align:left">Only when fully cool (off 10+ min). Fixes wrong temperature readings.</div></div>
     <button id="btnRecal" class="ghost" style="flex:none">Recalibrate</button></div>
+  <div class="set"><div><div>Fix early "ready"</div><div class="note" style="text-align:left">If the Carta skips heat-up (starts its countdown at once), cancel and restart so it takes a real reading.</div></div>
+    <button class="toggle" id="tgAutoFix" aria-label="Fix early ready"></button></div>
   <div class="set"><div><div>Record diagnostics</div><div class="note" style="text-align:left">Logs raw device data during sessions.</div></div>
     <button class="toggle" id="tgDiag" aria-label="Record diagnostics"></button></div>
   <div class="set"><span>Diagnostics log <span class="note" id="diagCount"></span></span>
@@ -651,22 +661,25 @@ function render(){
   if (S.atomizer!=='none' && mode!==S.atomizer){ mode = S.atomizer; pending = null; presetMode = 'use'; }  // follow atomizer swaps
   const runMode = S.atomizer==='none' ? mode : S.atomizer;
   const active = curDevice(runMode), tgt = active.temp;
-  // The device doesn't report a live coil temperature over Bluetooth (status bytes 6-7 are the
-  // session target), and its countdown runs from the moment a session starts, heat-up included.
+  // Status bytes 6-7 are the live coil reading while heating up; the countdown holds until the
+  // target is reached, then runs. (Idle, they hold the last reading, which goes stale.)
+  const warming = heating && curve && !curve.done && curve.readyAt==null;
   const shown = heating ? active : curSet(mode);
   document.querySelectorAll('.unit').forEach(e => e.textContent = '°'+S.unit);
+  $('liveTemp').textContent = S.temp;
+  $('liveChip').classList.toggle('off', !warming);
   const st = $('state');
-  st.textContent = heating ? 'Session on' : (S.atomizer==='none' ? 'No atomizer' : 'Idle');
-  st.className = 'state' + (heating ? ' hot' : '');
+  st.textContent = warming ? 'Heating' : heating ? 'Ready' : (S.atomizer==='none' ? 'No atomizer' : 'Idle');
+  st.className = 'state' + (warming ? ' hot' : heating ? ' ready' : '');
   $('setLbl').textContent = heating ? 'Target' : 'Set';
   $('setTemp').textContent = shown.temp;
   $('timeLine').textContent = heating ? `${fmtTime(S.remaining)} left` : fmtTime(+shown.dur);
   renderLastLine(heating);
   // progress: share of the session elapsed
   const total = (curve && !curve.done && curve.total) || active.dur || 1;
-  const frac = heating ? 1 - S.remaining/total : 0;
+  const frac = warming ? S.temp/tgt : heating ? 1 - S.remaining/total : 0;   // heat-up, then time elapsed
   $('progBar').style.width = (Math.max(0,Math.min(1,frac))*100)+'%';
-  $('prog').classList.toggle('hot', heating);
+  $('prog').classList.toggle('hot', !!warming);
   $('factAtom').textContent = S.atomizer==='none' ? 'No atomizer' : (S.atomizer==='flower' ? 'Flower' : 'Concentrate') + ' atomizer';
   $('factStatus').textContent = S.locked ? '🔒 Locked' : S.sleep>0 && S.sleep*2.5<=60 ? `Sleeping in ${Math.round(S.sleep*2.5)}s` : S.charging ? '⚡ Charging' : 'Awake';
   $('bat').textContent = S.battery+'%'; $('batIcon').textContent = S.charging ? '⚡' : '🔋';
@@ -708,18 +721,42 @@ function renderLights(){
 /* ---------- Session tracking ----------
    Remembers when the current/last session started and ended, for the progress bar and the
    "last session" line (kept across reloads). */
-let curve = store.get('lastCurve', null);   // {start, end, target, unit, mode, dur, total, done}
+let curve = store.get('lastCurve', null);
+let fixing = null;   // early-ready fix in progress
+let autoFix = store.get('autoFix', true);   // {start, end, target, unit, mode, dur, total, done}
 function recordCurve(){
   const heating = S.remaining > 0, now = Date.now();
   if (heating && (!curve || curve.done)){
     const m = S.atomizer==='none' ? mode : S.atomizer;
+    const retry = !!(fixing && now - fixing.at < 8000);
+    if (retry) fixing = null;
     curve = { start: now, target: curDevice(m).temp, unit: S.unit, done: false, mode: m, dur: curDevice(m).dur,
-              total: S.remaining, diag: diagOn ? [] : null, analytics: [] };
+              total: S.remaining, startRem: S.remaining, readyAt: null, retry, diag: diagOn ? [] : null, analytics: [] };
   }
   if (!curve || curve.done) return;
   curve.total = Math.max(curve.total || 0, S.remaining);   // +10 s extends it
+  if (heating && curve.readyAt==null){
+    if (S.remaining < curve.startRem){
+      curve.readyAt = (now - curve.start)/1000;
+      // Firmware bug: at start the Carta trusts its last saved reading instead of measuring the coil.
+      // If that stale value is near the target it calls itself ready at once (countdown starts, ready
+      // buzz) while the coil is still cooler. Cancelling makes it take a real reading; restart after.
+      if (autoFix && !curve.retry && curve.readyAt <= 2.5){
+        curve.early = true; fixing = { at: now, target: curve.target };
+        sessionCmd(ACT_CANCEL, 0);
+        toast('Carta skipped heat-up · taking a fresh reading…');
+      }
+    } else curve.startRem = Math.max(curve.startRem, S.remaining);
+  }
   if (!heating){
     curve.done = true; curve.end = now;
+    if (curve.early && fixing) setTimeout(() => {
+      if (!S || S.remaining > 0) return;
+      const hot = S.temp >= fixing.target - (S.unit==='C' ? 6 : 10);
+      fixing.at = Date.now();
+      sessionCmd(ACT_START, 0);   // same preset/values the device already holds
+      toast(hot ? 'Coil really is hot · restarting' : `Coil was ${S.temp}° · restarting for a real heat-up`);
+    }, 1300);
     if (curve.diag) saveDiag(curve);
     const { diag, analytics, ...light } = curve;   // keep the stored copy small
     store.set('lastCurve', light);
@@ -731,6 +768,7 @@ function ago(ms){
 }
 function renderLastLine(heating){
   const c = curve, el = $('lastLine');
+  if (heating && c && !c.done && c.readyAt==null){ el.innerHTML = `Heating for ${fmtTime(Math.round((Date.now()-c.start)/1000))} · to <b>${c.target}°</b>`; return; }
   if (heating && c && !c.done){ el.innerHTML = `Started ${ago(Date.now()-c.start)} · ends in <b>${fmtTime(S.remaining)}</b>`; return; }
   if (c && c.done && c.end){
     el.innerHTML = `Last session <b>${c.target}°${c.unit}</b> · ${fmtTime(Math.round((c.end-c.start)/1000))} · ${ago(Date.now()-c.end)}`; return;
@@ -761,6 +799,8 @@ $('btnDiagExport').onclick = () => {
   setTimeout(() => URL.revokeObjectURL(a.href), 2000);
 };
 $('tgDiag').classList.toggle('on', diagOn); renderDiagCount();
+$('tgAutoFix').classList.toggle('on', autoFix);
+$('tgAutoFix').onclick = () => { autoFix = !autoFix; store.set('autoFix', autoFix); $('tgAutoFix').classList.toggle('on', autoFix); };
 
 /* ---------- Device stats, session log, calibration ---------- */
 const STATS = {};   // counts, ohms, timeouts
@@ -1059,8 +1099,10 @@ class Demo{
     if (b[0]===0xCC){
       s.fT=(b[2]<<8)|b[3]; s.cT=(b[4]<<8)|b[5]; s.fD=(b[7]<<8)|b[8]; s.cD=(b[9]<<8)|b[10]; s.fR=b[11]; s.cR=b[12];
       const P=this.presets||{}, dur = s.atom===0xA0 ? (s.fR&&P.flower? P.flower[s.fR-1][1] : s.fD) : (s.cR&&P.conc? P.conc[s.cR-1][1] : s.cD);
-      if (b[13]===ACT_START){ s.phase=1; s.rem = dur; }
-      if (b[13]===ACT_CANCEL){ s.phase=0; s.rem=0; }
+      // Mimic the real firmware: it trusts its stale saved reading at start (early "ready" bug);
+      // cancelling takes a fresh reading of the actual coil.
+      if (b[13]===ACT_START){ s.phase=1; s.rem = dur; s.ready = s.temp >= this.target()-5; }
+      if (b[13]===ACT_CANCEL){ s.phase=0; s.rem=0; s.temp = Math.round(s.real); }
       if (b[13]===ACT_ADD && s.phase) s.rem=Math.min(255,s.rem+b[14]);
     }
     if (b[0]===0xFA){   // session log: fake entries spread over the last few weeks
@@ -1086,11 +1128,15 @@ class Demo{
     if (slot && b[1]===0x14){ this.leds[slot]=[b[2],b[3],...[0,1,2,3,4].map(i=>[b[4+i*3],b[5+i*3],b[6+i*3]])]; this.sendLed(slot); }
     this.tick();
   }
+  target(){ const P=this.presets||{}, s=this.s; return s.atom===0xA0 ? (s.fR&&P.flower?P.flower[s.fR-1][0]:s.fT) : (s.cR&&P.conc?P.conc[s.cR-1][0]:s.cT); }
   tick(){
-    const P=this.presets||{}, s=this.s, tgt = s.atom===0xA0 ? (s.fR&&P.flower?P.flower[s.fR-1][0]:s.fT) : (s.cR&&P.conc?P.conc[s.cR-1][0]:s.cT);
-    const room=s.unit===UNIT_C?26:78;
-    if (s.phase){ s.temp += Math.max(1, Math.round((tgt-s.temp)*0.15)); if (s.temp>=tgt-3){ s.temp=tgt; s.rem=Math.max(0,s.rem-0.5); if(!s.rem) s.phase=0; } }
-    else s.temp = Math.max(room, s.temp - Math.round((s.temp-room)*0.05) - (s.temp>room?1:0));
+    const s=this.s, tgt=this.target(), room=s.unit===UNIT_C?26:78;
+    if (s.real==null) s.real = s.temp;
+    if (s.phase){
+      s.real = Math.min(tgt, s.real + Math.max(2, (tgt-s.real)*0.2));       // the heater works either way
+      if (!s.ready){ s.temp = Math.round(s.real); if (s.real >= tgt-3) s.ready = true; }
+      else { s.temp = tgt; s.rem = Math.max(0, s.rem-0.5); if (!s.rem) s.phase = 0; }  // countdown only once "ready"
+    } else s.real = Math.max(room, s.real - (s.real-room)*0.04);           // cools; reported value stays stale
     const r=Math.ceil(s.rem);
     onFrame(new Uint8Array([0x99,0x14,s.atom,s.unit,(s.fR<<4)|s.cR,r,hi(s.temp),lo(s.temp),hi(s.fT),lo(s.fT),hi(s.cT),lo(s.cT),
       s.bat,(s.led<<4)|8,s.fD,s.cD,(s.lock<<4)|s.chg,(s.vib<<4)|s.save,0,0x99]));
