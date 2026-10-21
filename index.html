@@ -82,6 +82,8 @@ header h1{font-size:16px;margin:0;flex:1;white-space:nowrap;overflow:hidden;text
 .seg{display:flex;background:var(--card2);border-radius:12px;padding:3px;gap:3px}
 .seg button{flex:1;padding:8px;background:transparent;border-radius:9px;color:var(--dim);font-weight:650;font-size:14px}
 .seg button.sel{background:var(--accent);color:#04211c}
+#modeSeg button:disabled{opacity:.45}
+#modeSeg button:disabled::before{content:"🔒 ";font-size:11px}
 /* preset tiles */
 .phead{display:flex;align-items:center;gap:8px;margin-top:10px;min-height:26px}
 .phead .lbl{flex:1}
@@ -607,7 +609,13 @@ function setHTML(el, html){ if (el.dataset.html !== html){ el.innerHTML = html; 
 
 function renderControls(){
   const L = limits(mode), v = curSet(mode), u = S ? S.unit : 'F';
-  document.querySelectorAll('#modeSeg button').forEach(b => b.classList.toggle('sel', b.dataset.mode===mode));
+  // Lock to the attached atomizer so the wrong mode can't be picked; both unlock when none is attached
+  const att = S && S.atomizer!=='none' ? S.atomizer : null;
+  document.querySelectorAll('#modeSeg button').forEach(b => {
+    b.classList.toggle('sel', b.dataset.mode===mode);
+    b.disabled = !!att && b.dataset.mode!==att;
+    b.title = b.disabled ? `A ${att} atomizer is attached` : '';
+  });
   const tr=$('tRange'), dr=$('dRange');
   tr.min=L.t[0]; tr.max=L.t[1]; dr.min=L.d[0]; dr.max=L.d[1];
   if (document.activeElement!==tr) tr.value=v.temp;
@@ -675,6 +683,7 @@ function peSet(temp, dur){
 function render(){
   if (!S) return;
   const heating = S.remaining>0;
+  if (S.atomizer!=='none' && mode!==S.atomizer){ mode = S.atomizer; pending = null; presetMode = 'use'; }  // follow atomizer swaps
   const runMode = S.atomizer==='none' ? mode : S.atomizer;
   const active = curDevice(runMode), tgt = active.temp;
   const ready = heating && S.temp >= tgt - (S.unit==='C'?3:5);
