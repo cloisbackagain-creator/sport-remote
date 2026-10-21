@@ -774,8 +774,9 @@ function recordCurve(){
 function checkSkipped(t){
   const c = curve;
   if (c.skipChecked || t > 6) { c.skipChecked = true; return; }
-  const reachedFlag = c.analytics.some(a => a.reached && a.t <= 2.5);
-  if (t <= 2.5 && (c.ready!=null || reachedFlag)){
+  // Temperature only: byte 2 of the 0xDD analytics stream is not a reliable "reached" flag
+  // (it was set at 114°F on a real device), so it is recorded but not used here.
+  if (t <= 2.5 && c.ready!=null){
     c.skipChecked = true; c.skipped = +t.toFixed(1);
     const recent = c.prevEnd && (c.start - c.prevEnd) < 120000;
     $('skipText').innerHTML = `<b>Heat-up skipped.</b> The device said it was ready ${c.skipped < 1 ? 'immediately' : `after ${c.skipped}s`}. `
@@ -829,6 +830,7 @@ function decodeExtra(b){
   if (b[0]===0xAA && b[1]===0x13 && b[18]===0xAA){
     Object.assign(STATS, { flower:u16(b,2), conc:u16(b,4), flowerToday:u16(b,6), concToday:u16(b,8),
       flowerWeek:u16(b,10), concWeek:u16(b,12), flowerMonth:u16(b,14), concMonth:u16(b,16) });
+    if (historyWaiting) requestHistory();
     return true;
   }
   if (b[0]===0xCE && b[1]===7 && b[6]===0xCE){ STATS.flowerOhms=u16(b,2); STATS.concOhms=u16(b,4); return true; }   // atomizer resistance (mΩ)
@@ -849,13 +851,21 @@ function decodeExtra(b){
   }
   return false;
 }
+// The session counters (0xAA) are only sent after a clock sync, so refresh them first;
+// otherwise sessions since connecting would be cut off.
+let historyWaiting = null;
 function loadHistory(){
   if (!S) return;
+  $('btnHistory').textContent = 'Loading…'; $('btnHistory').disabled = true;
+  historyWaiting = setTimeout(requestHistory, 3000);   // fall back to the counts we have
+  syncClock();
+}
+function requestHistory(){
+  clearTimeout(historyWaiting); historyWaiting = null;
   const total = (STATS.flower||0) + (STATS.conc||0);
-  if (!total){ toast('No sessions logged yet'); return; }
+  if (!total){ toast('No sessions logged yet'); finishHistory(); return; }
   const from = Math.max(1, total-99);
   LOGS.clear(); logWant = total-from+1;
-  $('btnHistory').textContent = 'Loading…'; $('btnHistory').disabled = true;
   // 0xFA = read log entries [from..to]. (0xFD would mark them as synced; never sent, so the official app still earns XP.)
   clearTimeout(logT); logT = setTimeout(finishHistory, 8000);   // set before sending: replies may arrive synchronously
   send([0xFA,7,hi(from),lo(from),hi(total),lo(total),0xFA]);
