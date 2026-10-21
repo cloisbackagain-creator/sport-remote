@@ -1416,7 +1416,19 @@ $('tgLock').onclick = () => S && settingsCmd({lock:!S.locked});
 $('tgSave').onclick = () => { if (!S) return; const on = !S.powerSave;
   if (on && S.brightness > 2) store.set('brightness', S.brightness);
   settingsCmd({powerSave:on, brightness: on ? 2 : store.get('brightness', 8)}); };
-$('vibRange').onchange = e => settingsCmd({vibration:+e.target.value});
+// After a change, make the Carta buzz once at the new level so it can be felt. There's no "test
+// vibration" command, but toggling power saving there and back makes it buzz (found by testing).
+let vibT;
+$('vibRange').onchange = e => {
+  const v = +e.target.value; clearTimeout(vibT);
+  settingsCmd({vibration: v});
+  if (!S || S.remaining > 0) return;   // don't fiddle with settings mid-session
+  const ps = S.powerSave, userBri = ps ? store.get('brightness', 8) : (S.brightness || 8);
+  vibT = setTimeout(() => {
+    settingsCmd({vibration: v, powerSave: !ps, brightness: !ps ? 2 : userBri});
+    setTimeout(() => settingsCmd({vibration: v, powerSave: ps, brightness: ps ? 2 : userBri}), 600);
+  }, 400);
+};
 $('vibRange').oninput = e => $('vibVal').textContent = e.target.value;
 document.querySelectorAll('#unitSeg button').forEach(b => b.onclick = () => S && S.unit!==b.dataset.u && settingsCmd({unit:b.dataset.u}));
 $('btnPowerOff').onclick = () => { if (confirm('Power off the device?')) { wantConnected=false; settingsCmd({powerOff:true});
