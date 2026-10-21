@@ -50,7 +50,8 @@ header h1{font-size:16px;margin:0;flex:1;white-space:nowrap;overflow:hidden;text
 .hero .big small{font-size:.4em;color:var(--dim);font-weight:600;margin-left:2px}
 .hero .mid{font-size:clamp(30px,9vw,40px);font-weight:700;line-height:1}
 .hero .mid small{font-size:.45em;color:var(--dim);font-weight:600}
-#liveBox .big{transition:color .4s}
+#liveBox .big{transition:color .4s,opacity .4s}
+#liveBox.idle .big{opacity:.45}
 #liveBox.hot .big{color:var(--heat)}
 #liveBox.ready .big{color:var(--accent)}
 .state{margin-top:6px;font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--dim)}
@@ -143,7 +144,7 @@ input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;bac
 
     <div class="card hero">
       <div id="liveBox">
-        <div class="lbl">Live</div>
+        <div class="lbl" id="liveLbl">Live</div>
         <div class="big num"><span id="liveTemp">--</span><small class="unit">°F</small></div>
         <div id="state" class="state">Idle</div>
       </div>
@@ -479,8 +480,11 @@ function render(){
   const ready = heating && S.temp >= tgt - (S.unit==='C'?3:5);
   const shown = heating ? active : curSet(mode);
   document.querySelectorAll('.unit').forEach(e => e.textContent = '°'+S.unit);
+  // The coil temperature is measured through its resistance, which only works while it's powered.
+  // When idle the device just repeats its last reading, so label it as such.
   $('liveTemp').textContent = S.temp;
-  $('liveBox').className = heating ? (ready ? 'ready' : 'hot') : '';
+  $('liveLbl').textContent = heating ? 'Live' : 'Last reading';
+  $('liveBox').className = heating ? (ready ? 'ready' : 'hot') : 'idle';
   const st = $('state');
   st.textContent = heating ? (ready ? 'Ready' : 'Heating') : (S.atomizer==='none' ? 'No atomizer' : 'Idle');
   st.className = 'state' + (heating ? (ready?' ready':' hot') : '');
