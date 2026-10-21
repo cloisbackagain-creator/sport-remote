@@ -82,12 +82,25 @@ header h1{font-size:16px;margin:0;flex:1;white-space:nowrap;overflow:hidden;text
 .seg{display:flex;background:var(--card2);border-radius:12px;padding:3px;gap:3px}
 .seg button{flex:1;padding:8px;background:transparent;border-radius:9px;color:var(--dim);font-weight:650;font-size:14px}
 .seg button.sel{background:var(--accent);color:#04211c}
-.chips{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;margin-top:8px}
-.chips::-webkit-scrollbar{display:none}
-.chips button{flex:none;padding:6px 10px;font-size:12px;border-radius:99px;background:transparent;border:1px solid var(--line);color:var(--dim)}
-.chips button b{color:var(--text);font-weight:650}
-.chips button.sel{border-color:var(--accent);color:var(--accent)}
-.chips button.sel b{color:var(--accent)}
+/* preset tiles */
+.phead{display:flex;align-items:center;gap:8px;margin-top:10px;min-height:26px}
+.phead .lbl{flex:1}
+.phead button{padding:4px 10px;font-size:12px;border-radius:99px;background:transparent;border:1px solid var(--line);color:var(--dim)}
+.phead button.on{border-color:var(--accent);color:var(--accent)}
+.phead .save{border-color:var(--accent);color:var(--accent);font-weight:650}
+.ptiles{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-top:6px}
+.ptiles button{position:relative;padding:7px 2px 6px;border:1px solid var(--line);background:var(--card2);border-radius:12px;display:flex;flex-direction:column;align-items:center;gap:1px;min-width:0}
+.ptiles .pn{font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--dim);max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 3px}
+.ptiles .pt{font-size:17px;font-weight:700;font-variant-numeric:tabular-nums}
+.ptiles .pd{font-size:11px;color:var(--dim);font-variant-numeric:tabular-nums}
+.ptiles button.sel{border-color:var(--accent);background:rgba(25,195,165,.12)}
+.ptiles button.sel .pt,.ptiles button.sel .pn{color:var(--accent)}
+.ptiles.editing button{border-style:dashed}
+.ptiles.editing button::after{content:"✎";position:absolute;top:2px;right:5px;font-size:10px;color:var(--dim)}
+.ptiles.picking button{border-color:var(--accent);border-style:dashed;animation:pick 1s ease-in-out infinite}
+@keyframes pick{50%{background:rgba(25,195,165,.18)}}
+.pedit .adj{margin-top:10px}
+.pedit input[type=text]{width:100%;font:inherit;color:var(--text);background:var(--card2);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
 .adjust{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
 .adj{background:var(--card2);border-radius:12px;padding:8px 6px 6px;text-align:center}
 .adj .row{display:flex;align-items:center;justify-content:space-between;gap:4px;margin-top:2px}
@@ -165,7 +178,13 @@ input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;bac
   .hero .big{font-size:40px}
   .curve svg{height:64px}
   .go{padding:12px}
+  .ptiles button{padding:5px 2px 4px}.ptiles .pt{font-size:15px}
+}
+/* sliders are a convenience; drop them before anything scrolls */
+@media (max-height:760px){
   input[type=range].opt{display:none}
+  .adj{padding-bottom:8px}
+  .curve svg{height:80px}
 }
 </style>
 </head>
@@ -213,7 +232,12 @@ input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;bac
         <button data-mode="concentrate">Concentrate</button>
         <button data-mode="flower">Flower</button>
       </div>
-      <div class="chips" id="quick"></div>
+      <div class="phead">
+        <span class="lbl" id="pheadLbl">Presets</span>
+        <button class="save hidden" id="btnSaveCustom">＋ Save as preset</button>
+        <button id="btnEditPresets" aria-pressed="false">✎ Edit</button>
+      </div>
+      <div class="ptiles" id="ptiles"></div>
       <div class="adjust">
         <div class="adj">
           <div class="lbl">Temperature</div>
@@ -274,6 +298,27 @@ input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;bac
   <div class="set col"><div><span>Colors</span></div>
     <div class="swatches" id="swatches"></div></div>
   <p class="note" id="ledNote" style="margin-top:8px">Changes are saved to the selected preset on the device.</p>
+</section>
+
+<!-- Preset editor -->
+<section class="sheet pedit" id="presetSheet" aria-label="Edit preset">
+  <h2><span id="peTitle">Edit preset</span> <button class="ghost" data-close>Cancel</button></h2>
+  <label class="lbl" for="peName">Name</label>
+  <input type="text" id="peName" maxlength="14" placeholder="P1" style="margin-top:6px">
+  <div class="adjust" style="grid-template-columns:1fr">
+    <div class="adj">
+      <div class="lbl">Temperature</div>
+      <div class="row"><button data-pe="t" data-d="-1" aria-label="Lower">−</button><span class="v num" id="peT">--</span><button data-pe="t" data-d="1" aria-label="Raise">+</button></div>
+      <input type="range" id="peTR" aria-label="Preset temperature">
+    </div>
+    <div class="adj">
+      <div class="lbl">Session length</div>
+      <div class="row"><button data-pe="d" data-d="-1" aria-label="Shorter">−</button><span class="v num" id="peD">--</span><button data-pe="d" data-d="1" aria-label="Longer">+</button></div>
+      <input type="range" id="peDR" aria-label="Preset session length">
+    </div>
+  </div>
+  <button class="primary go btn-wide" id="peSave" style="margin-top:14px">Save to device</button>
+  <p class="note" style="margin-top:8px">Saved presets also work from the button on the device. Names are kept in this app only.</p>
 </section>
 
 <!-- Stats sheet -->
@@ -569,12 +614,62 @@ function renderControls(){
   if (document.activeElement!==dr) dr.value=v.dur;
   $('tVal').textContent = `${v.temp}°`;
   $('dVal').textContent = fmtTime(+v.dur);
-  const r = S ? matchRank(mode, +v.temp, +v.dur) : 0;
-  const q = store.get(`quick.${mode}.${u}`, []);
-  setHTML($('quick'),
-    presetsFor(mode).map((p,i)=>`<button class="${r===i+1?'sel':''}" data-p="${i}"><b>P${i+1}</b> ${p.temp}° · ${fmtTime(p.dur)}</button>`).join('')
-    + q.map((p,i)=>`<button data-q="${i}"><b>★</b> ${p.temp}° · ${fmtTime(p.dur)}</button>`).join('')
-    + `<button data-save="1">＋ Save</button>`);
+  renderPresets(v);
+}
+
+/* ---------- Presets ----------
+   Tap a tile to use it. "Edit" turns tiles into editors; "Save as preset" appears when the
+   current temp/time match no preset and lets you drop them into a slot. Saved to the device. */
+let presetMode = 'use';   // 'use' | 'edit' | 'pick'
+let peState = null;       // {mode, slot, temp, dur}
+const pname = (m,i) => store.get(`pname.${m}.${i}`, '') || `P${i+1}`;
+function renderPresets(v){
+  const list = presetsFor(mode), r = S ? matchRank(mode, +v.temp, +v.dur) : 0;
+  const tiles = list.length ? list.map((p,i)=>`<button class="${presetMode==='use' && r===i+1?'sel':''}" data-p="${i}" aria-label="${pname(mode,i)}: ${p.temp} degrees, ${fmtTime(p.dur)}">
+      <span class="pn">${pname(mode,i).replace(/</g,'&lt;')}</span><span class="pt">${p.temp}°</span><span class="pd">${fmtTime(p.dur)}</span></button>`).join('')
+    : [1,2,3,4,5].map(i=>`<button disabled><span class="pn">P${i}</span><span class="pt">--</span><span class="pd">--</span></button>`).join('');
+  setHTML($('ptiles'), tiles);
+  $('ptiles').classList.toggle('editing', presetMode==='edit');
+  $('ptiles').classList.toggle('picking', presetMode==='pick');
+  const custom = list.length && !r && presetMode==='use';
+  $('btnSaveCustom').classList.toggle('hidden', !custom);
+  $('pheadLbl').textContent = presetMode==='edit' ? 'Tap a preset to edit' : presetMode==='pick' ? 'Tap a slot to replace' : custom ? 'Custom' : 'Presets';
+  $('btnEditPresets').textContent = presetMode==='use' ? '✎ Edit' : presetMode==='edit' ? 'Done' : 'Cancel';
+  $('btnEditPresets').classList.toggle('on', presetMode!=='use');
+}
+// 0x88 (flower) / 0x66 (concentrate): all 5 presets as [tempHi tempLo dur] in the current unit
+function writePresets(m, list){
+  const hdr = m==='flower' ? 0x88 : 0x66;
+  send([hdr, 0x13, ...list.flatMap(p=>[hi(p.temp),lo(p.temp),p.dur]), S.unit==='C'?UNIT_C:UNIT_F, hdr]);
+  PRESETS[m+S.unit] = list.map(p=>({...p}));
+  delete PRESETS[m+(S.unit==='C'?'F':'C')];   // device recomputes the other unit
+  setTimeout(syncClock, 800);                  // ask the device to resend its presets so we show what it stored
+}
+function savePreset(m, slot, temp, dur){
+  const list = presetsFor(m).map(p=>({...p}));
+  list[slot] = { temp, dur };
+  writePresets(m, list);
+  pending = null; edit(temp, dur);             // make it the active preset
+  toast(`Saved to ${pname(m,slot)}`);
+}
+function openPresetEditor(slot){
+  const p = presetsFor(mode)[slot]; if (!p) return;
+  peState = { mode, slot, temp: p.temp, dur: p.dur };
+  $('peTitle').textContent = `${mode==='flower'?'Flower':'Concentrate'} · preset ${slot+1}`;
+  $('peName').value = store.get(`pname.${mode}.${slot}`, ''); $('peName').placeholder = `P${slot+1}`;
+  renderPresetEditor(); openSheet('presetSheet');
+}
+function renderPresetEditor(){
+  const L = limits(peState.mode), u = S ? S.unit : 'F';
+  $('peTR').min=L.t[0]; $('peTR').max=L.t[1]; $('peDR').min=L.d[0]; $('peDR').max=L.d[1];
+  $('peTR').value=peState.temp; $('peDR').value=peState.dur;
+  $('peT').textContent = `${peState.temp}°${u}`; $('peD').textContent = fmtTime(peState.dur);
+}
+function peSet(temp, dur){
+  const L = limits(peState.mode);
+  peState.temp = Math.max(L.t[0], Math.min(L.t[1], Math.round(temp)));
+  peState.dur  = Math.max(L.d[0], Math.min(L.d[1], Math.round(dur)));
+  renderPresetEditor();
 }
 
 function render(){
@@ -945,7 +1040,7 @@ document.addEventListener('keydown', e => { if (e.key==='Escape') closeSheets();
 /* ---------- Wire up ---------- */
 $('btnConnect').onclick = connect;
 $('btnDemo').onclick = () => { demo = new Demo(); showApp(); setLink('Demo', true); $('devName').textContent='DEMO'; syncClock(); };
-document.querySelectorAll('#modeSeg button').forEach(b => b.onclick = () => { mode=b.dataset.mode; pending=null; render(); });
+document.querySelectorAll('#modeSeg button').forEach(b => b.onclick = () => { mode=b.dataset.mode; pending=null; presetMode='use'; render(); });
 $('tRange').oninput = e => edit(+e.target.value, curSet(mode).dur);
 $('dRange').oninput = e => edit(curSet(mode).temp, +e.target.value);
 document.querySelectorAll('[data-step]').forEach(b => {
@@ -955,20 +1050,35 @@ document.querySelectorAll('[data-step]').forEach(b => {
   b.addEventListener('pointerdown', () => { fire(); rep=setTimeout(function r(){ fire(); rep=setTimeout(r,90); },400); });
   ['pointerup','pointerleave','pointercancel'].forEach(ev=>b.addEventListener(ev,()=>clearTimeout(rep)));
 });
-$('quick').onclick = e => {
-  const t = e.target.closest('button'); if (!t) return;
-  const u = S?S.unit:'F', key=`quick.${mode}.${u}`, q = store.get(key,[]);
-  if (t.dataset.p!=null){ const p=presetsFor(mode)[+t.dataset.p]; edit(p.temp,p.dur); }
-  else if (t.dataset.q!=null){ const p=q[+t.dataset.q]; edit(p.temp,p.dur); }
-  else if (t.dataset.save){ const v=curSet(mode); q.push({temp:+v.temp,dur:+v.dur}); store.set(key,q.slice(-6)); renderControls(); toast('Saved'); }
+$('ptiles').onclick = e => {
+  const t = e.target.closest('button[data-p]'); if (!t || !S) return;
+  const i = +t.dataset.p, p = presetsFor(mode)[i];
+  if (presetMode==='edit'){ openPresetEditor(i); return; }
+  if (presetMode==='pick'){
+    const v = curSet(mode);
+    if (!confirm(`Replace ${pname(mode,i)} (${p.temp}° · ${fmtTime(p.dur)}) with ${v.temp}° · ${fmtTime(+v.dur)}?`)) return;
+    presetMode = 'use'; savePreset(mode, i, +v.temp, +v.dur); return;
+  }
+  edit(p.temp, p.dur);
 };
-// long-press a saved (★) chip to remove it
-$('quick').addEventListener('contextmenu', e => {
-  const t = e.target.closest('button[data-q]'); if (!t) return;
-  e.preventDefault();
-  const u = S?S.unit:'F', key=`quick.${mode}.${u}`, q = store.get(key,[]);
-  q.splice(+t.dataset.q,1); store.set(key,q); renderControls(); toast('Removed');
+$('btnEditPresets').onclick = () => { presetMode = presetMode==='use' ? 'edit' : 'use'; renderControls(); };
+$('btnSaveCustom').onclick = () => { presetMode = 'pick'; renderControls(); };
+document.querySelectorAll('[data-pe]').forEach(b => {
+  let rep;
+  const fire = () => { const d=+b.dataset.d;
+    b.dataset.pe==='t' ? peSet(peState.temp + d*(S&&S.unit==='C'?1:5), peState.dur) : peSet(peState.temp, peState.dur + d*5); };
+  b.addEventListener('pointerdown', () => { fire(); rep=setTimeout(function r(){ fire(); rep=setTimeout(r,90); },400); });
+  ['pointerup','pointerleave','pointercancel'].forEach(ev=>b.addEventListener(ev,()=>clearTimeout(rep)));
 });
+$('peTR').oninput = e => peSet(+e.target.value, peState.dur);
+$('peDR').oninput = e => peSet(peState.temp, +e.target.value);
+$('peSave').onclick = () => {
+  const { mode: m, slot, temp, dur } = peState;
+  const name = $('peName').value.trim();
+  name ? store.set(`pname.${m}.${slot}`, name) : (()=>{ try{ localStorage.removeItem(`cs.pname.${m}.${slot}`) }catch{} })();
+  closeSheets(); presetMode = 'use';
+  savePreset(m, slot, temp, dur);
+};
 $('btnStart').onclick = () => {
   if (!S) return;
   if (S.atomizer!==mode){ toast(`Device has a ${S.atomizer} atomizer attached`); mode=S.atomizer; render(); return; }
@@ -1029,10 +1139,11 @@ class Demo{
     const s=this.s;
     if (b[0]===0xDD){
       const send = (h, list) => onFrame(new Uint8Array([h,0x12,...list.flatMap(([t,d])=>[hi(t),lo(t),d]),h]));
-      send(0x55,[[330,240],[350,240],[370,240],[390,240],[410,240]]);
-      send(0x33,[[465,95],[490,80],[525,95],[440,90],[580,45]]);
-      send(0x44,[[166,240],[177,240],[188,240],[199,240],[210,240]]);
-      send(0x22,[[240,95],[254,80],[273,95],[226,90],[304,45]]);
+      const P = this.presets = this.presets || {};
+      P.flower = P.flower || [[330,240],[350,240],[370,240],[390,240],[410,240]];
+      P.conc   = P.conc   || [[465,95],[490,80],[525,95],[440,90],[580,45]];
+      send(0x55, P.flower); send(0x33, P.conc);
+      send(0x44, P.flower.map(([t,d])=>[f2c(t),d])); send(0x22, P.conc.map(([t,d])=>[f2c(t),d]));
       [1,2,3,4,5].forEach(n=>this.sendLed(n));
       onFrame(new Uint8Array([0xAA,0x13,0,12,hi(this.total),lo(this.total),0,0,0,3,0,1,0,9,0,2,0,40,0xAA]));
       onFrame(new Uint8Array([0xCE,7,2,0x80,2,8,0xCE]));
@@ -1040,7 +1151,7 @@ class Demo{
     }
     if (b[0]===0xCC){
       s.fT=(b[2]<<8)|b[3]; s.cT=(b[4]<<8)|b[5]; s.fD=(b[7]<<8)|b[8]; s.cD=(b[9]<<8)|b[10]; s.fR=b[11]; s.cR=b[12];
-      const dur = s.atom===0xA0 ? (s.fR? [240,240,240,240,240][s.fR-1] : s.fD) : (s.cR? [95,80,95,90,45][s.cR-1] : s.cD);
+      const P=this.presets||{}, dur = s.atom===0xA0 ? (s.fR&&P.flower? P.flower[s.fR-1][1] : s.fD) : (s.cR&&P.conc? P.conc[s.cR-1][1] : s.cD);
       if (b[13]===ACT_START){ s.phase=1; s.rem = dur; }
       if (b[13]===ACT_CANCEL){ s.phase=0; s.rem=0; }
       if (b[13]===ACT_ADD && s.phase) s.rem=Math.min(255,s.rem+b[14]);
@@ -1053,6 +1164,11 @@ class Demo{
         onFrame(new Uint8Array([0xFC,0x12,hi(i),lo(i),0,1,(fl?0xA0:0x60)|p,hi(t.getUTCFullYear()),lo(t.getUTCFullYear()),t.getUTCMonth()+1,t.getUTCDate(),t.getUTCHours(),t.getUTCMinutes(),fl?240:80,hi(temp),lo(temp),0x11,0xFC]));
       }
     }
+    if ((b[0]===0x88 || b[0]===0x66) && b[1]===0x13){
+      const list = [0,1,2,3,4].map(i=>[u16(b,2+i*3), b[4+i*3]]), toC = b[17]===UNIT_F ? f2c : (x=>x), toF = b[17]===UNIT_C ? c2f : (x=>x);
+      this.presets = this.presets || {};
+      this.presets[b[0]===0x88?'flower':'conc'] = list.map(([t,d])=>[toF(t),d]);
+    }
     if (b[0]===0xC1) setTimeout(()=>onFrame(new Uint8Array([0xC2,8,1,2,0x7c,2,0x05,0xC2])), 1200);
     if (b[0]===0x11){
       if (b[3]!==s.unit){ const toC=b[3]===UNIT_C, cv=toC?f2c:c2f; s.fT=cv(s.fT); s.cT=cv(s.cT); s.temp=cv(s.temp); s.unit=b[3]; }
@@ -1064,7 +1180,7 @@ class Demo{
     this.tick();
   }
   tick(){
-    const s=this.s, tgt = s.atom===0xA0 ? (s.fR?[330,350,370,390,410][s.fR-1]:s.fT) : (s.cR?[465,490,525,440,580][s.cR-1]:s.cT);
+    const P=this.presets||{}, s=this.s, tgt = s.atom===0xA0 ? (s.fR&&P.flower?P.flower[s.fR-1][0]:s.fT) : (s.cR&&P.conc?P.conc[s.cR-1][0]:s.cT);
     const room=s.unit===UNIT_C?26:78;
     if (s.phase){ s.temp += Math.max(1, Math.round((tgt-s.temp)*0.15)); if (s.temp>=tgt-3){ s.temp=tgt; s.rem=Math.max(0,s.rem-0.5); if(!s.rem) s.phase=0; } }
     else s.temp = Math.max(room, s.temp - Math.round((s.temp-room)*0.05) - (s.temp>room?1:0));
