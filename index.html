@@ -515,7 +515,10 @@ async function openGatt(){
 // Web Bluetooth path: standard info characteristics (some, like serial, are blocked by browsers)
 async function readInfoWeb(server){
   const txt = v => new TextDecoder().decode(v.buffer).replace(/\0/g,'').trim();
-  const tryRead = async (svc, ch, key) => { try{ const sv = await server.getPrimaryService(svc); INFO[key] = txt(await (await sv.getCharacteristic(ch)).readValue()); }catch{} };
+  // queued with the writes: Web Bluetooth rejects overlapping GATT operations
+  const tryRead = (svc, ch, key) => (writeQ = writeQ.catch(()=>{}).then(async () => {
+    try{ const sv = await server.getPrimaryService(svc); INFO[key] = txt(await (await sv.getCharacteristic(ch)).readValue()); }catch{}
+  }));
   await tryRead('device_information','model_number_string','model');
   await tryRead('device_information','software_revision_string','firmware');
   await tryRead('device_information','hardware_revision_string','hardware');
@@ -539,9 +542,14 @@ function send(bytes){
   if (bridge) { bridge.send(JSON.stringify({type:'write', data:[...data]})); return Promise.resolve(); }
   if (!chr) { toast('Not connected'); return Promise.reject(new Error('not connected')); }
   // serialize writes: Web Bluetooth rejects overlapping GATT operations
-  writeQ = writeQ.catch(()=>{}).then(() =>
-    chr.properties.writeWithoutResponse ? chr.writeValueWithoutResponse(data) : chr.writeValue(data));
-  return writeQ.catch(e => { toast('Write failed: '+e.message); throw e; });
+  // Not every Web Bluetooth browser (e.g. some Bluefy versions) has writeValueWithoutResponse,
+  // so fall back to the long-supported writeValue, and retry once on a transient failure.
+  const write = () => (chr.properties.writeWithoutResponse && typeof chr.writeValueWithoutResponse === 'function')
+    ? chr.writeValueWithoutResponse(data)
+    : typeof chr.writeValueWithResponse === 'function' && !chr.properties.writeWithoutResponse
+      ? chr.writeValueWithResponse(data) : chr.writeValue(data);
+  writeQ = writeQ.catch(()=>{}).then(() => write().catch(() => new Promise(r => setTimeout(r, 150)).then(() => chr.writeValue(data))));
+  return writeQ.catch(e => { toast(`Write failed: ${e.name||''} ${e.message}`.trim()); throw e; });
 }
 
 // The clock sync also makes the device send its session and LED presets
