@@ -430,7 +430,19 @@ function decodeLed(b){
   if (!slot || b[1]!==0x14 || b.length<20 || b[19]!==b[0]) return false;
   const colors = [0,1,2,3,4].map(i => [b[4+i*3], b[5+i*3], b[6+i*3]]);
   LEDS[slot] = { top:b[2]>>4, base:b[2]&15, pattern:b[3]>>4, speed:b[3]&15, colors };
+  const d = store.get(`ledDim.${slot}`, null);
+  if (!d || JSON.stringify(dimColors(d.full, d.level)) !== JSON.stringify(colors))
+    store.set(`ledDim.${slot}`, { full: colors, level: 10 });   // first seen, or changed by another app
   return true;
+}
+/* Brightness: the Sport ignores the per-preset brightness bytes and the device-wide brightness
+   setting doesn't change the lights, but colors apply live, so dim by scaling the RGB values.
+   The undimmed palette is remembered per slot so brightening restores it exactly. */
+const dimColors = (full, level) => full.map(c => c.map(v => Math.round(v * Math.pow(level/10, 2))));
+const ledDim = slot => store.get(`ledDim.${slot}`, { full: LEDS[slot] ? LEDS[slot].colors : [], level: 10 });
+function setLedDim(slot, full, level){
+  store.set(`ledDim.${slot}`, { full, level });
+  editLed({ colors: dimColors(full, level) });
 }
 function ledCmd(slot, p){
   const out = LED_OUT[slot];
@@ -727,16 +739,17 @@ function renderLights(){
   }).join(''));
   const slot = ledEditSlot ?? S.ledRank;
   const p = LEDS[slot];
-  if (document.activeElement!==$('briRange')) $('briRange').value = S.brightness;
-  $('briVal').textContent = S.brightness;
-  const editor = [$('patSeg')];
+  const dim = p ? ledDim(slot) : null;
+  if (dim && document.activeElement!==$('briRange')) $('briRange').value = dim.level;
+  $('briVal').textContent = dim ? dim.level : '--';
+  const editor = [$('patSeg'), $('briRange')];
   editor.forEach(e => e.closest('.set').style.opacity = p ? 1 : .4);
   $('ledNote').textContent = p ? `Editing preset ${slot}. Changes save to the device.` : 'Waiting for the device to send its light presets…';
   if (!p) return;
   document.querySelectorAll('#patSeg button').forEach(b => b.classList.toggle('sel', +b.dataset.p===p.pattern));
-  setHTML($('swatches'), p.colors.map((c,i)=>`<label><input type="color" data-c="${i}" value="${rgbHex(c)}">${i+1}</label>`).join(''));
-  // keep swatches in sync with device without rebuilding while the picker is open
-  document.querySelectorAll('#swatches input').forEach((inp,i) => { if (document.activeElement!==inp) inp.value = rgbHex(p.colors[i]); });
+  setHTML($('swatches'), dim.full.map((c,i)=>`<label><input type="color" data-c="${i}" value="${rgbHex(c)}">${i+1}</label>`).join(''));
+  // keep swatches in sync without rebuilding while the picker is open
+  document.querySelectorAll('#swatches input').forEach((inp,i) => { if (document.activeElement!==inp) inp.value = rgbHex(dim.full[i]); });
 }
 
 /* ---------- Session tracking ----------
@@ -1135,14 +1148,17 @@ $('ledChips').onclick = e => {
   renderLights();
 };
 $('patSeg').onclick = e => { const t=e.target.closest('button[data-p]'); if (t) editLed({pattern:+t.dataset.p}); };
-let briT;
-$('briRange').oninput = e => { $('briVal').textContent = e.target.value; clearTimeout(briT);
-  briT = setTimeout(() => { store.set('brightness', +e.target.value); settingsCmd({brightness:+e.target.value}); }, 200); };
+
+$('briRange').oninput = e => {
+  const slot = ledEditSlot ?? S.ledRank; if (!LEDS[slot]) return;
+  $('briVal').textContent = e.target.value;
+  setLedDim(slot, ledDim(slot).full, +e.target.value);
+};
 $('swatches').addEventListener('input', e => {
   const i = e.target.dataset.c; if (i==null) return;
-  const p = LEDS[ledEditSlot ?? S.ledRank]; if (!p) return;
-  const colors = p.colors.slice(); colors[+i] = hexRgb(e.target.value);
-  editLed({colors});
+  const slot = ledEditSlot ?? S.ledRank; if (!LEDS[slot]) return;
+  const d = ledDim(slot), full = d.full.map(c=>c.slice()); full[+i] = hexRgb(e.target.value);
+  setLedDim(slot, full, d.level);
 });
 // settings
 $('tgLock').onclick = () => S && settingsCmd({lock:!S.locked});
