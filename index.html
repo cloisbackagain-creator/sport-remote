@@ -334,7 +334,7 @@ input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;bac
   <div class="set"><span>Battery</span><span id="setBat" class="note">--</span></div>
   <div class="set"><div><div>Recalibrate atomizer</div><div class="note" style="text-align:left">Only when fully cool (off 10+ min). Fixes wrong temperature readings.</div></div>
     <button id="btnRecal" class="ghost" style="flex:none">Recalibrate</button></div>
-  <div class="set"><div><div>Always do a full heat-up</div><div class="note" style="text-align:left">Works around the Carta signalling ready too early when a preset is repeated.</div></div>
+  <div class="set"><div><div>Always do a full heat-up</div><div class="note" style="text-align:left">Runs app sessions 1–2° off your setting so the Carta doesn't signal ready too early on a repeated preset.</div></div>
     <button class="toggle" id="tgFullHeat" aria-label="Always do a full heat-up"></button></div>
   <div class="set"><div><div>Record diagnostics</div><div class="note" style="text-align:left">Logs raw device data during sessions.</div></div>
     <button class="toggle" id="tgDiag" aria-label="Record diagnostics"></button></div>
@@ -561,6 +561,7 @@ function limits(m){
 }
 function curSet(m){
   if (pending && pending.mode===m) return pending;
+  if (restoreAfter && restoreAfter.mode===m && S && S.remaining>0) return restoreAfter;  // session runs 1-2° off; show the chosen value
   if (!S) return { temp: limits(m).t[0], dur: limits(m).d[0] };
   return curDevice(m);
 }
@@ -655,7 +656,7 @@ function render(){
   const active = curDevice(runMode), tgt = active.temp;
   // The device doesn't report a live coil temperature over Bluetooth (status bytes 6-7 are the
   // session target), and its countdown runs from the moment a session starts, heat-up included.
-  const shown = heating ? active : curSet(mode);
+  const shown = heating && !restoreAfter ? active : curSet(mode);
   document.querySelectorAll('.unit').forEach(e => e.textContent = '°'+S.unit);
   const st = $('state');
   st.textContent = heating ? 'Session on' : (S.atomizer==='none' ? 'No atomizer' : 'Idle');
@@ -715,13 +716,14 @@ function recordCurve(){
   const heating = S.remaining > 0, now = Date.now();
   if (heating && (!curve || curve.done)){
     const m = S.atomizer==='none' ? mode : S.atomizer;
-    curve = { start: now, target: curDevice(m).temp, unit: S.unit, done: false, mode: m, dur: curDevice(m).dur,
+    curve = { start: now, target: restoreAfter && restoreAfter.mode===m ? restoreAfter.temp : curDevice(m).temp, unit: S.unit, done: false, mode: m, dur: curDevice(m).dur,
               total: S.remaining, diag: diagOn ? [] : null, analytics: [] };
   }
   if (!curve || curve.done) return;
   curve.total = Math.max(curve.total || 0, S.remaining);   // +10 s extends it
   if (!heating){
     curve.done = true; curve.end = now;
+    if (restoreAfter){ const r = restoreAfter; restoreAfter = null; setTimeout(() => sessionCmd(ACT_SET, 0, r), 800); }
     if (curve.diag) saveDiag(curve);
     const { diag, analytics, ...light } = curve;   // keep the stored copy small
     store.set('lastCurve', light);
@@ -995,18 +997,21 @@ $('btnStart').onclick = () => {
   if (Date.now() < startLock) return;
   clearTimeout(pushT);
   startLock = Date.now() + 2000; $('btnStart').disabled = true;
-  // Firmware quirk: re-starting the same preset as the last session makes the Carta signal
-  // "ready" at once (it still heats, but the countdown and ready buzz start early). Changing the
-  // setting first avoids it, so nudge the temperature 5° away, then start at the real value.
+  // Firmware quirk: starting a session at the same target as the previous one makes the Carta
+  // signal "ready" at once (it still heats, but the ready buzz and countdown start early).
+  // Changing the setting and switching back doesn't help; the started target must differ.
+  // So run app sessions 1-2° off the chosen value (alternating, so consecutive app sessions and
+  // exact-preset button sessions never match), then restore the real preset once it ends.
   if (fullHeat){
-    const L = limits(mode), step = S.unit==='C' ? 3 : 5;
-    const nudge = go.temp + step <= L.t[1] ? go.temp + step : go.temp - step;
-    sessionCmd(ACT_SET, 0, {...go, temp: nudge});
-    setTimeout(() => sessionCmd(ACT_START, 0, go), 600);
+    const L = limits(mode), off = store.get('heatOff', 1);
+    const temp = go.temp + off <= L.t[1] ? go.temp + off : go.temp - off;
+    store.set('heatOff', off === 1 ? 2 : 1);
+    restoreAfter = go;
+    sessionCmd(ACT_START, 0, {...go, temp});
   } else sessionCmd(ACT_START, 0, go);
   navigator.vibrate?.(30);
 };
-let startLock = 0;
+let startLock = 0, restoreAfter = null;
 let fullHeat = store.get('fullHeat', true);
 $('tgFullHeat').classList.toggle('on', fullHeat);
 $('tgFullHeat').onclick = () => { fullHeat = !fullHeat; store.set('fullHeat', fullHeat); $('tgFullHeat').classList.toggle('on', fullHeat); };
