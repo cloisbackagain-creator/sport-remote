@@ -69,17 +69,19 @@ class Bridge:
     # ---- BLE ----
     async def find_device(self):
         await self.status("scanning")
-        return await BleakScanner.find_device_by_filter(is_carta, timeout=12.0)
+        return await BleakScanner.find_device_by_filter(is_carta, timeout=8.0)
 
     async def connect_loop(self):
+        """Keep the Carta connected for as long as a browser tab wants it: wait for it to be
+        switched on, reconnect after it sleeps or drops, never give up on its own."""
         attempt = 0
         while self.want:
             try:
                 dev = await self.find_device()
                 if not dev:
-                    await self.status("error", message="No CARTA Sport found. Is it on (press V 5x) and nearby?")
-                    self.want = False
-                    return
+                    await self.status("waiting", message="Waiting for the Carta. Press V 5x to turn it on.")
+                    await asyncio.sleep(2)
+                    continue
                 self.name = dev.name or "CARTA SPORT"
                 await self.status("connecting")
                 done = asyncio.Event()
@@ -91,17 +93,13 @@ class Bridge:
                 await client.start_notify(NOTIFY, self.on_notify)
                 attempt = 0
                 await self.status("connected")
-                await done.wait()           # until the link drops
+                await done.wait()           # until the link drops (sleep, power off, out of range)
                 self.client = None
                 if self.want:
-                    await self.status("reconnecting")
+                    await self.status("waiting", message="Carta disconnected. Reconnecting when it's back.")
             except Exception as e:  # BLE errors are many and varied; report and retry
                 self.client = None
                 attempt += 1
-                if attempt > 5:
-                    await self.status("error", message=f"Connection failed: {e}")
-                    self.want = False
-                    return
                 await self.status("reconnecting", message=str(e))
                 await asyncio.sleep(min(2 * attempt, 8))
         await self.status("disconnected")

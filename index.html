@@ -35,7 +35,20 @@ button:disabled{opacity:.35;pointer-events:none}
 .note{font-size:13px;color:var(--dim);text-align:center;margin:0}
 
 /* app */
-#appView{flex:1;display:flex;flex-direction:column;gap:10px;min-height:0}
+#appView{flex:1;display:flex;flex-direction:column;min-height:0}
+#mainCol{flex:1;display:flex;flex-direction:column;gap:10px;min-height:0}
+#side{display:none}
+/* wide screens (desktop app): controls left, stats & history always visible on the right */
+@media (min-width:960px) and (min-height:560px){
+  main{max-width:1180px}
+  #appView{flex-direction:row;gap:18px}
+  #mainCol{width:440px;flex:none}
+  #side{display:block;flex:1;min-width:0;overflow:auto;background:var(--card);border:1px solid var(--line);border-radius:18px;padding:14px 16px}
+  #side .sec:first-child{margin-top:0}
+  #btnStats{display:none}
+  #mainCol .actions .row3{grid-template-columns:1fr 1fr}
+  .hist{max-height:none}
+}
 header{display:flex;align-items:center;gap:8px}
 header h1{font-size:16px;margin:0;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .pill{display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--dim);background:var(--card);border:1px solid var(--line);border-radius:99px;padding:5px 9px;white-space:nowrap}
@@ -116,6 +129,12 @@ input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;bac
 .actions .row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .actions .row3{grid-template-columns:1fr 1fr 1fr}
 .actions .row3 button{padding:11px 4px;font-size:14px}
+/* keyboard shortcuts */
+.keys{display:grid;grid-template-columns:1fr auto;gap:6px 12px;align-items:center;font-size:14px;margin-top:6px}
+.keys button.kbd{min-width:64px;padding:5px 10px;font:600 13px ui-monospace,SFMono-Regular,Menlo,monospace;border:1px solid var(--line);border-bottom-width:2px;background:var(--card2);border-radius:8px}
+.keys button.kbd.capture{border-color:var(--accent);color:var(--accent)}
+.keys button.kbd.none{color:var(--dim);font-style:italic}
+.keys.off{opacity:.4;pointer-events:none}
 /* stats */
 .kv{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;font-size:14px}
 .kv span:nth-child(odd){color:var(--dim)}
@@ -131,6 +150,10 @@ input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;bac
 .bars rect.zero{fill:var(--line)}
 .bars rect:hover{fill:#5fe0c8}
 .bars text{fill:var(--dim);font-size:10px}
+.bars .dot{fill:var(--accent);stroke:var(--card);stroke-width:2}
+.bars .dot:hover{fill:#5fe0c8}
+.bars .trend{fill:none;stroke:var(--accent);stroke-width:2;opacity:.5}
+.bars .avg{stroke:var(--dim);stroke-dasharray:3 4}
 .hist{max-height:220px;overflow:auto;border-top:1px solid var(--line)}
 .hist div{display:grid;grid-template-columns:1fr auto auto;gap:10px;padding:8px 0;border-bottom:1px solid var(--line);font-size:13px;font-variant-numeric:tabular-nums}
 .hist div span:first-child{color:var(--dim)}
@@ -177,6 +200,10 @@ input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;bac
 }
 /* sliders are a convenience; drop them before anything scrolls */
 @media (max-height:760px){
+  #mainCol{gap:8px}
+  .card{padding:10px 12px}
+  .phead{margin-top:8px}
+  .adjust{margin-top:8px}
   input[type=range].opt{display:none}
   .adj{padding-bottom:8px}
 }
@@ -187,7 +214,7 @@ input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;bac
   <!-- Connect screen -->
   <section id="connectView">
     <div class="logo">SPORT<span>.</span></div>
-    <p class="note">Power on your CARTA Sport (press the V button 5×), keep it close, then connect.</p>
+    <p class="note" id="connectNote">Power on your CARTA Sport (press the V button 5×), keep it close, then connect.</p>
     <button id="btnConnect" class="primary go">Connect</button>
     <button id="btnDemo" class="ghost">Try demo mode</button>
     <p id="bleWarn" class="note hidden">This browser can't use Bluetooth. On iPhone, open this page in <b>Bluefy</b> or the Focus V <b>V Browser</b>. On Android, use Chrome. On a PC, use the Sport Remote desktop launcher.</p>
@@ -195,6 +222,7 @@ input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;bac
 
   <!-- Control screen -->
   <section id="appView" class="hidden">
+   <div id="mainCol">
     <header>
       <h1 id="devName">CARTA SPORT</h1>
       <span class="pill num"><span id="batIcon">🔋</span><span id="bat">--%</span></span>
@@ -265,6 +293,8 @@ input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;bac
         <button id="btnSettings" class="ghost">⚙ Settings</button>
       </div>
     </div>
+   </div>
+   <aside id="side" aria-label="Stats and history"></aside>
   </section>
 </main>
 
@@ -313,10 +343,16 @@ input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;bac
 <!-- Stats sheet -->
 <section class="sheet" id="statsSheet" aria-label="Stats">
   <h2>Stats <button class="ghost" data-close>Done</button></h2>
+  <div id="statsBody">
   <div class="tiles">
     <div class="tile"><b id="stLife">--</b><span>lifetime sessions</span></div>
     <div class="tile"><b id="stConc">--</b><span>concentrate</span></div>
     <div class="tile"><b id="stFlower">--</b><span>flower</span></div>
+  </div>
+  <div class="sec">
+    <span class="lbl">Heat-up speed · recent sessions</span>
+    <svg class="bars" id="heatChart" role="img" aria-label="Heat-up speed per session"></svg>
+    <div class="note" id="heatNote" style="text-align:left;margin-top:4px"></div>
   </div>
   <div class="sec">
     <span class="lbl">Session history (stored on the device)</span>
@@ -330,6 +366,12 @@ input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;bac
       <div class="kv" id="hSummary" style="margin-bottom:10px"></div>
       <span class="lbl" style="display:block;margin:6px 0">Sessions per day · last 14 days</span>
       <svg class="bars" id="hBars" role="img" aria-label="Sessions per day"></svg>
+      <span class="lbl" style="display:block;margin:12px 0 6px">Time of day</span>
+      <svg class="bars" id="hHours" role="img" aria-label="Sessions by hour of day"></svg>
+      <div class="row" style="display:flex;gap:8px;margin:10px 0">
+        <button class="ghost" id="btnOlder" style="flex:1;padding:9px">Load older</button>
+        <button class="ghost" id="btnCsv" style="flex:1;padding:9px">Export CSV</button>
+      </div>
       <div class="hist" id="hList"></div>
     </div>
   </div>
@@ -338,6 +380,7 @@ input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;bac
     <div class="kv" id="devKv"></div>
   </div>
   <p class="note" style="margin-top:14px">XP on the Focus V leaderboard is earned when the official app syncs this session history. This app only reads it, so nothing is lost. Open the official app now and then to collect your XP.</p>
+  </div>
 </section>
 
 <!-- Settings sheet -->
@@ -354,6 +397,16 @@ input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;bac
     <button id="btnRecal" class="ghost" style="flex:none">Recalibrate</button></div>
   <div class="set"><div><div>Fix early "ready"</div><div class="note" style="text-align:left">If the Carta skips heat-up (starts its countdown at once), cancel and restart so it takes a real reading.</div></div>
     <button class="toggle" id="tgAutoFix" aria-label="Fix early ready"></button></div>
+  <div class="set"><div><div>Desktop notifications</div><div class="note" style="text-align:left">Ready to hit, 10 s left, session done, low battery. Shown when the app isn't focused.</div></div>
+    <button class="toggle" id="tgNotify" aria-label="Desktop notifications"></button></div>
+  <div class="set"><div><div>Connect automatically</div><div class="note" style="text-align:left">Desktop app: connect on open and whenever the Carta turns on.</div></div>
+    <button class="toggle" id="tgAuto" aria-label="Connect automatically"></button></div>
+  <div class="set col">
+    <div><span>Keyboard shortcuts</span><button class="toggle" id="tgKeys" aria-label="Keyboard shortcuts"></button></div>
+    <div class="keys" id="keyList"></div>
+    <button class="ghost" id="btnKeysReset" style="margin-top:8px;padding:8px">Reset shortcuts to defaults</button>
+    <div class="note" style="text-align:left;margin-top:4px">Click a key to change it, then press the new key. Backspace clears it, Esc cancels.</div>
+  </div>
   <div class="set"><div><div>Record diagnostics</div><div class="note" style="text-align:left">Logs raw device data during sessions.</div></div>
     <button class="toggle" id="tgDiag" aria-label="Record diagnostics"></button></div>
   <div class="set"><span>Diagnostics log <span class="note" id="diagCount"></span></span>
@@ -477,22 +530,32 @@ function openBridge(){
     const m = JSON.parse(e.data);
     if (m.type==='frame') onFrame(new Uint8Array(m.data));
     else if (m.type==='error') toast(m.message);
-    else if (m.type==='status') onBridgeStatus(m);
+    else if (m.type==='status'){
+      const first = bridgeState===null; onBridgeStatus(m);
+      if (first && m.state==='disconnected' && store.get('autoConnect', true)) ws.send(JSON.stringify({type:'connect'}));
+    }
     else if (m.type==='info'){ Object.assign(INFO, m.data); renderStats(); }
   };
   ws.onclose = () => { setLink('Bridge closed', false); toast('Desktop bridge stopped. Relaunch Sport Remote.'); };
 }
 function onBridgeStatus(m){
-  const labels = {scanning:'Searching…', connecting:'Connecting…', connected:'Connected', reconnecting:'Reconnecting…', disconnected:'Disconnected', error:'Error'};
+  const labels = {scanning:'Searching…', connecting:'Connecting…', connected:'Connected', reconnecting:'Reconnecting…', waiting:'Waiting for Carta', disconnected:'Disconnected', error:'Error'};
   setLink(labels[m.state] || m.state, m.state==='connected');
-  $('btnConnect').textContent = m.state==='scanning' ? 'Searching…' : m.state==='connecting' ? 'Connecting…' : 'Connect';
-  $('btnConnect').disabled = m.state==='scanning' || m.state==='connecting';
-  if (m.state==='connected'){ $('devName').textContent = m.name || 'CARTA SPORT'; showApp(); syncClock(); bridge.send(JSON.stringify({type:'info'})); }
+  bridgeState = m.state;
+  const busy = ['scanning','connecting','waiting','reconnecting'].includes(m.state);
+  // while the bridge is looking for the Carta, the button stops the search
+  $('btnConnect').textContent = busy ? 'Stop searching' : 'Connect';
+  $('connectNote').textContent = busy ? (m.message || 'Looking for your Carta… press V 5× to turn it on.') : 'Power on your CARTA Sport (press the V button 5×), keep it close, then connect.';
+  if (m.state==='connected'){ $('devName').textContent = m.name || 'CARTA SPORT'; showApp(); syncClock(); bridge.send(JSON.stringify({type:'info'})); autoHistory(2500); }
   if (m.state==='error') toast(m.message);
 }
 
+let bridgeState = null;
 async function connect(){
-  if (bridge){ bridge.send(JSON.stringify({type:'connect'})); return; }
+  if (bridge){
+    const busy = ['scanning','connecting','waiting','reconnecting'].includes(bridgeState);
+    bridge.send(JSON.stringify({type: busy ? 'disconnect' : 'connect'})); return;
+  }
   if (!navigator.bluetooth){ toast('Bluetooth not available in this browser'); return; }
   try{
     // Same filters as the official app: the Sport advertises Device Information (180A), not its own service
@@ -519,6 +582,7 @@ async function openGatt(){
   setLink('Connected', true);
   syncClock();
   readInfoWeb(server);
+  autoHistory(2500);
 }
 // Web Bluetooth path: standard info characteristics (some, like serial, are blocked by browsers)
 async function readInfoWeb(server){
@@ -716,6 +780,8 @@ function render(){
   $('prog').classList.toggle('hot', !!warming);
   $('factAtom').textContent = S.atomizer==='none' ? 'No atomizer' : (S.atomizer==='flower' ? 'Flower' : 'Concentrate') + ' atomizer';
   $('factStatus').textContent = S.locked ? '🔒 Locked' : S.sleep>0 && S.sleep*2.5<=60 ? `Sleeping in ${Math.round(S.sleep*2.5)}s` : S.charging ? '⚡ Charging' : 'Awake';
+  if (S.battery <= 15 && !S.charging && !lowBattWarned){ lowBattWarned = true; notify('Carta battery low', `${S.battery}% left`, 'batt'); }
+  if (S.battery > 25 || S.charging) lowBattWarned = false;
   $('bat').textContent = S.battery+'%'; $('batIcon').textContent = S.charging ? '⚡' : '🔋';
   $('setBat').textContent = S.battery+'%' + (S.charging?' · charging':'');
   $('tgLock').classList.toggle('on', S.locked);
@@ -769,6 +835,7 @@ function recordCurve(){
   }
   if (!curve || curve.done) return;
   curve.total = Math.max(curve.total || 0, S.remaining);   // +10 s extends it
+  if (heating && curve.readyAt!=null && !curve.warned10 && S.remaining <= 10){ curve.warned10 = true; notify('10 seconds left', `${curve.target}°${curve.unit} session ending`, 'ten'); }
   if (heating){
     const t = (now - curve.start)/1000, last = curve.samples[curve.samples.length-1];
     if (!last || t - last[0] >= 0.3) curve.samples.push([+t.toFixed(1), S.temp]);
@@ -776,6 +843,7 @@ function recordCurve(){
   if (heating && curve.readyAt==null){
     if (S.remaining < curve.startRem){
       curve.readyAt = (now - curve.start)/1000;
+      if (!(autoFix && !curve.retry && curve.readyAt <= 2.5)) onReady(curve);
       // Firmware bug: at start the Carta trusts its last saved reading instead of measuring the coil.
       // If that stale value is near the target it calls itself ready at once (countdown starts, ready
       // buzz) while the coil is still cooler. Cancelling makes it take a real reading; restart after.
@@ -794,12 +862,106 @@ function recordCurve(){
       fixing.at = Date.now();
       sessionCmd(ACT_START, 0);   // same preset/values the device already holds
       toast(hot ? 'Coil really is hot · restarting' : `Coil was ${S.temp}° · restarting for a real heat-up`);
+      notify('Skipped heat-up fixed', `The Carta called itself ready too early (coil was ${S.temp}°). Restarted for a real heat-up.`, 'early');
     }, 1300);
     if (curve.diag) saveDiag(curve);
+    if (!curve.early && curve.readyAt!=null){ notify('Session finished', `${curve.target}°${curve.unit} · ${fmtTime(Math.round((now-curve.start)/1000))}`, 'done'); noteSessionEnded(curve.start); }
     const { diag, analytics, ...light } = curve;   // keep the stored copy small
     if (!curve.early) store.set('lastCurve', light);
   }
 }
+/* ---------- Notifications ----------
+   Desktop notifications (Notification API; the app window maps them to system notifications).
+   Only shown when the app isn't focused, so they don't double up with what's on screen. */
+let notifyOn = store.get('notify', false), lowBattWarned = false;
+function notify(title, body, tag){
+  if (!notifyOn || typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
+  if (document.hasFocus() && !document.hidden) return;
+  try { new Notification(title, { body, tag: 'carta-'+tag }); } catch {}
+}
+function onReady(c){
+  notify('Ready to hit', `${c.target}°${c.unit} reached in ${fmtTime(Math.round(c.readyAt))}`, 'ready');
+  // heat-up log: rate (°/s) from the first reading to the target tracks atomizer health over time
+  const from = c.samples.length ? c.samples[0][1] : null;
+  if (from!=null && c.readyAt > 1){
+    const log = store.get('heatLog', []);
+    log.push({ t: c.start, mode: c.mode, unit: c.unit, target: c.target, from, secs: +c.readyAt.toFixed(1) });
+    store.set('heatLog', log.slice(-300));
+  }
+}
+$('tgNotify').classList.toggle('on', notifyOn);
+$('tgNotify').onclick = async () => {
+  if (!notifyOn){
+    if (typeof Notification === 'undefined'){ toast('Notifications aren\'t supported here'); return; }
+    const perm = Notification.permission === 'granted' ? 'granted' : await Notification.requestPermission();
+    if (perm !== 'granted'){ toast('Notifications were blocked'); return; }
+  }
+  notifyOn = !notifyOn; store.set('notify', notifyOn); $('tgNotify').classList.toggle('on', notifyOn);
+  if (notifyOn) toast('You\'ll get a notification when the Carta is ready');
+};
+$('tgAuto').classList.toggle('on', store.get('autoConnect', true));
+$('tgAuto').onclick = () => { const v = !store.get('autoConnect', true); store.set('autoConnect', v); $('tgAuto').classList.toggle('on', v); };
+
+/* ---------- Keyboard shortcuts (remappable, can be turned off) ---------- */
+const KEY_ACTIONS = [
+  ['start','Start / cancel session',' '], ['add','Add 10 seconds','a'],
+  ['p1','Preset 1','1'], ['p2','Preset 2','2'], ['p3','Preset 3','3'], ['p4','Preset 4','4'], ['p5','Preset 5','5'],
+  ['tUp','Temperature up','ArrowUp'], ['tDown','Temperature down','ArrowDown'],
+  ['dUp','Session longer','ArrowRight'], ['dDown','Session shorter','ArrowLeft'],
+  ['lights','Open lights','l'], ['stats','Open stats','s'], ['settings','Open settings',','],
+];
+let keysOn = store.get('keysOn', true), keyCapture = null;
+const keyMap = () => ({ ...Object.fromEntries(KEY_ACTIONS.map(([id,,k])=>[id,k])), ...store.get('keys', {}) });
+const normKey = k => k.length === 1 ? k.toLowerCase() : k;
+const keyName = k => !k ? 'none' : ({' ':'Space', ArrowUp:'↑', ArrowDown:'↓', ArrowLeft:'←', ArrowRight:'→'})[k] || (k.length===1 ? k.toUpperCase() : k);
+function renderKeys(){
+  const m = keyMap();
+  $('keyList').innerHTML = KEY_ACTIONS.map(([id,label]) =>
+    `<span>${label}</span><button class="kbd${keyCapture===id?' capture':''}${m[id]?'':' none'}" data-k="${id}">${keyCapture===id ? 'Press a key…' : keyName(m[id])}</button>`).join('');
+  $('keyList').classList.toggle('off', !keysOn);
+  $('tgKeys').classList.toggle('on', keysOn);
+}
+$('keyList').onclick = e => { const b = e.target.closest('[data-k]'); if (!b) return; keyCapture = keyCapture===b.dataset.k ? null : b.dataset.k; renderKeys(); };
+$('tgKeys').onclick = () => { keysOn = !keysOn; store.set('keysOn', keysOn); keyCapture = null; renderKeys(); };
+$('btnKeysReset').onclick = () => { store.set('keys', {}); keyCapture = null; renderKeys(); toast('Shortcuts reset'); };
+function runKey(id){
+  if (!S) return false;
+  const v = curSet(mode), step = S.unit==='C' ? 1 : 5;
+  switch (id){
+    case 'start': S.remaining > 0 ? sessionCmd(ACT_CANCEL, 0) : $('btnStart').click(); break;
+    case 'add': if (S.remaining > 0) $('btnAdd').click(); break;
+    case 'tUp': edit(+v.temp + step, v.dur); break;
+    case 'tDown': edit(+v.temp - step, v.dur); break;
+    case 'dUp': edit(v.temp, +v.dur + 5); break;
+    case 'dDown': edit(v.temp, +v.dur - 5); break;
+    case 'lights': $('btnLights').click(); break;
+    case 'stats': $('btnStats').click(); break;
+    case 'settings': $('btnSettings').click(); break;
+    default: { const i = /^p(\d)$/.exec(id); if (i){ const p = presetsFor(mode)[+i[1]-1]; if (p) edit(p.temp, p.dur); } }
+  }
+  return true;
+}
+document.addEventListener('keydown', e => {
+  if (keyCapture){   // assigning a new key
+    e.preventDefault();
+    if (e.key !== 'Escape'){
+      const k = (e.key==='Backspace' || e.key==='Delete') ? '' : normKey(e.key), keys = store.get('keys', {}), m = keyMap();
+      if (k) for (const [id] of KEY_ACTIONS) if (id!==keyCapture && m[id]===k){ keys[id] = ''; toast(`${keyName(k)} moved from "${KEY_ACTIONS.find(a=>a[0]===id)[1]}"`); }
+      keys[keyCapture] = k; store.set('keys', keys);
+    }
+    keyCapture = null; renderKeys(); return;
+  }
+  if (e.key === 'Escape'){ closeSheets(); return; }
+  if (!keysOn || e.ctrlKey || e.metaKey || e.altKey || e.repeat && !/^Arrow/.test(e.key)) return;
+  if (e.target.closest && e.target.closest('input, textarea, select, [contenteditable]')) return;
+  if (document.querySelector('.sheet.show') || $('appView').classList.contains('hidden')) return;
+  const k = normKey(e.key), m = keyMap(), id = Object.keys(m).find(a => m[a] && m[a] === k);
+  if (id && runKey(id)) e.preventDefault();
+});
+// mouse clicks shouldn't leave focus on a button (Space would then also "press" it)
+document.addEventListener('click', e => { const b = e.target.closest('button'); if (b && e.detail > 0) b.blur(); });
+renderKeys();
+
 /* Heating curve: live coil readings during heat-up (orange), then the held target once the
    Carta is ready (teal), with a marker where the countdown started. Last session stays dimmed. */
 let hoverT = null;
@@ -903,6 +1065,8 @@ const u16 = (b,i) => (b[i]<<8)|b[i+1];
 function decodeExtra(b){
   // 0xAA: session counters  flower, conc, then today/week/month for each
   if (b[0]===0xAA && b[1]===0x13 && b[18]===0xAA){
+    const prevTotal = (STATS.flower||0) + (STATS.conc||0), total = u16(b,2) + u16(b,4);
+    if (prevTotal && total > prevTotal){ lastNewLog = { index: total, at: Date.now() }; if (pendingClockRef) setClockRef(total, pendingClockRef.real); }
     Object.assign(STATS, { flower:u16(b,2), conc:u16(b,4), flowerToday:u16(b,6), concToday:u16(b,8),
       flowerWeek:u16(b,10), concWeek:u16(b,12), flowerMonth:u16(b,14), concMonth:u16(b,16) });
     if (historyWaiting) requestHistory();
@@ -935,15 +1099,18 @@ function loadHistory(){
   historyWaiting = setTimeout(requestHistory, 3000);   // fall back to the counts we have
   syncClock();
 }
-function requestHistory(){
+function requestHistory(older){
   clearTimeout(historyWaiting); historyWaiting = null;
   const total = (STATS.flower||0) + (STATS.conc||0);
   if (!total){ toast('No sessions logged yet'); finishHistory(); return; }
-  const from = Math.max(1, total-99);
-  LOGS.clear(); logWant = total-from+1;
+  let from, to;
+  if (older){ const min = Math.min(...LOGS.keys()); to = min-1; from = Math.max(1, min-100); if (to < 1){ toast('That\'s everything'); return; } }
+  else { to = total; from = Math.max(1, total-99); LOGS.clear(); }
+  logWant = LOGS.size + (to-from+1);
+  $('btnHistory').textContent = 'Loading…'; $('btnHistory').disabled = true;
   // 0xFA = read log entries [from..to]. (0xFD would mark them as synced; never sent, so the official app still earns XP.)
   clearTimeout(logT); logT = setTimeout(finishHistory, 8000);   // set before sending: replies may arrive synchronously
-  send([0xFA,7,hi(from),lo(from),hi(total),lo(total),0xFA]);
+  send([0xFA,7,hi(from),lo(from),hi(to),lo(to),0xFA]);
 }
 function logProgress(){
   if (!logWant) return;
@@ -954,8 +1121,25 @@ function finishHistory(){
   logWant = 0; $('btnHistory').disabled = false; $('btnHistory').textContent = 'Reload sessions';
   renderHistory();
 }
+/* Clock correction: when a session watched live shows up in the device log, the difference between
+   when it really started and the device's timestamp is the Carta's clock error. If it's more than a
+   few minutes, history times are shifted by it. */
+let pendingClockRef = null, lastNewLog = null;
+function noteSessionEnded(real){
+  autoHistory(4000);
+  if (lastNewLog && Date.now() - lastNewLog.at < 5000) setClockRef(lastNewLog.index, real);
+  else pendingClockRef = { real };
+}
+function setClockRef(index, real){ pendingClockRef = null; store.set('clockRef', { index, real }); }
+function clockOffset(){
+  const ref = store.get('clockRef', null), e = ref && LOGS.get(ref.index);
+  if (e){ const off = ref.real - e.when; store.set('clockOff', Math.abs(off) > 180000 ? off : 0); }
+  return store.get('clockOff', 0);
+}
+function fmtOffset(ms){ const m = Math.round(Math.abs(ms)/60000), h = Math.floor(m/60); return `${ms<0?'−':'+'}${h ? h+'h ' : ''}${m%60}m`; }
 function renderHistory(){
-  const logs = [...LOGS.values()].filter(Boolean).sort((a,b)=>b.when-a.when);
+  const off = clockOffset();
+  const logs = [...LOGS.values()].filter(Boolean).map(l => ({...l, when: l.when + off})).sort((a,b)=>b.when-a.when);
   if (!logs.length){ toast('The device didn\'t return any sessions'); return; }
   $('histBox').classList.remove('hidden');
   const now = Date.now(), day = 864e5, midnight = new Date().setHours(0,0,0,0);
@@ -971,6 +1155,7 @@ function renderHistory(){
     conc.length && ['Avg concentrate', `${avg(conc.map(l=>l.temp))}°${conc[0].unit} · ${fmtTime(avg(conc.map(l=>l.dur)))}`],
     fl.length && ['Avg flower', `${avg(fl.map(l=>l.temp))}°${fl[0].unit} · ${fmtTime(avg(fl.map(l=>l.dur)))}`],
     ['Most used', favTop ? `${favTop[0]} · ${favTop[1]}×` : '--'],
+    off && ['Clock fix', `times shifted ${fmtOffset(off)} (the Carta's clock is off)`],
   ].filter(Boolean).map(([k,v])=>`<span>${k}</span><span>${v}</span>`).join('');
   // sessions per day, last 14 days
   const days = [...Array(14)].map((_,i) => { const d0 = midnight - (13-i)*day; return { d0, n: logs.filter(l=>l.when>=d0 && l.when<d0+day).length }; });
@@ -981,10 +1166,52 @@ function renderHistory(){
     return `<rect class="${d.n?'':'zero'}" x="${x}" y="${y}" width="${bw-4}" height="${h}" rx="3"><title>${fmtD(d.d0)}: ${d.n} session${d.n===1?'':'s'}</title></rect>`
       + (d.n===max && d.n ? `<text x="${x+(bw-4)/2}" y="${y-3}" text-anchor="middle">${d.n}</text>` : '');
   }).join('') + `<text x="2" y="${H-2}">${fmtD(days[0].d0)}</text><text x="${W-2}" y="${H-2}" text-anchor="end">Today</text>`;
+  // sessions by hour of day
+  const hours = [...Array(24)].map((_,h) => logs.filter(l => new Date(l.when).getHours()===h).length);
+  const hs = $('hHours'), HW = hs.clientWidth || 320, hmax = Math.max(1, ...hours), hb = HW/24;
+  const hl = h => h===0 ? '12a' : h<12 ? h+'a' : h===12 ? '12p' : (h-12)+'p';
+  hs.innerHTML = hours.map((n,h) => { const bh = n ? Math.max(4,(H-padB-14)*n/hmax) : 2, x = h*hb+1, y = H-padB-bh;
+      return `<rect class="${n?'':'zero'}" x="${x}" y="${y}" width="${Math.max(2,hb-2)}" height="${bh}" rx="2"><title>${hl(h)}–${hl((h+1)%24)}: ${n} session${n===1?'':'s'}</title></rect>`; }).join('')
+    + [0,6,12,18].map(h => `<text x="${h*hb+1}" y="${H-2}">${hl(h)}</text>`).join('');
+  historyRows = logs;
   $('hList').innerHTML = logs.map(l => `<div><span>${new Date(l.when).toLocaleString(undefined,{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})}</span>`
     + `<span>${l.mode==='flower'?'🌿':'💧'} ${l.preset?'P'+l.preset:'Custom'}</span><span>${l.temp}°${l.unit} · ${fmtTime(l.dur)}</span></div>`).join('');
 }
+let historyRows = [];
+$('btnOlder').onclick = () => { if (!S || !LOGS.size) return; $('btnHistory').disabled = true; requestHistory(true); };
+$('btnCsv').onclick = () => {
+  if (!historyRows.length){ toast('Load the history first'); return; }
+  const rows = [['index','date','time','mode','preset','temperature','unit','duration_s']].concat(historyRows.map(l => {
+    const d = new Date(l.when), pad = n => String(n).padStart(2,'0');
+    return [l.index, `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`, `${pad(d.getHours())}:${pad(d.getMinutes())}`, l.mode, l.preset ? 'P'+l.preset : 'custom', l.temp, l.unit, l.dur];
+  }));
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([rows.map(r=>r.join(',')).join('\n')], {type:'text/csv'}));
+  a.download = `carta-sessions-${new Date().toISOString().slice(0,10)}.csv`; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+};
+/* Heat-up speed per session (°/s from the first reading to the target). Normalises warm vs cold
+   starts; a sustained drop suggests dirty contacts or a worn atomizer. */
+function renderHeat(){
+  const unit = S ? S.unit : 'F', log = store.get('heatLog', []).filter(h => h.unit===unit && h.target > h.from + 20).slice(-30);
+  const svg = $('heatChart'), W = svg.clientWidth || 320, H = 84, padB = 14, padT = 14;
+  if (log.length < 2){ svg.innerHTML = `<text x="${W/2}" y="${H/2}" text-anchor="middle">Heat-ups are logged from each session; ${log.length} so far</text>`; $('heatNote').textContent = ''; return; }
+  const rate = h => (h.target - h.from) / h.secs, rs = log.map(rate), max = Math.max(...rs) * 1.15;
+  const X = i => 8 + (W-16) * (log.length===1 ? .5 : i/(log.length-1)), Y = v => padT + (H-padB-padT) * (1 - v/max);
+  const avg = rs.reduce((a,b)=>a+b,0)/rs.length, u = '°'+unit;
+  svg.innerHTML = `<line class="avg" x1="0" x2="${W}" y1="${Y(avg)}" y2="${Y(avg)}"/><text x="${W-2}" y="${Y(avg)-4}" text-anchor="end">avg ${avg.toFixed(1)}${u}/s</text>`
+    + `<path class="trend" d="${rs.map((r,i)=>`${i?'L':'M'}${X(i).toFixed(1)},${Y(r).toFixed(1)}`).join('')}"/>`
+    + log.map((h,i)=>`<circle class="dot" cx="${X(i)}" cy="${Y(rs[i])}" r="4"><title>${new Date(h.t).toLocaleString(undefined,{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})}: ${h.from}→${h.target}${u} in ${h.secs}s (${rs[i].toFixed(1)}${u}/s)</title></circle>`).join('')
+    + `<text x="2" y="${H-2}">older</text><text x="${W-2}" y="${H-2}" text-anchor="end">latest</text>`;
+  let note = `Heating at ${avg.toFixed(1)}${u}/s on average over ${log.length} sessions.`;
+  if (log.length >= 8){
+    const recent = rs.slice(-5).reduce((a,b)=>a+b,0)/5, before = rs.slice(0,-5).reduce((a,b)=>a+b,0)/(rs.length-5), ch = (recent-before)/before;
+    note += ch < -0.15 ? ` Recent heat-ups are ${Math.round(-ch*100)}% slower than before. The atomizer contacts may need cleaning.` : ' Steady.';
+  }
+  $('heatNote').textContent = note;
+}
 function renderStats(){
+  renderHeat();
   const has = v => v!=null && v!=='';
   if (has(STATS.conc)){
     $('stLife').textContent = (STATS.conc + STATS.flower).toLocaleString();
@@ -1021,19 +1248,34 @@ function onRecal(b){
 $('btnRecal').onclick = recalibrate;
 $('btnHistory').onclick = loadHistory;
 $('btnStats').onclick = () => { renderStats(); openSheet('statsSheet'); };
+const wideMQ = matchMedia('(min-width:960px) and (min-height:560px)');
+const isWide = () => wideMQ.matches;
+function placeStats(){
+  const body = $('statsBody');
+  if (isWide()){ if (body.parentElement.id !== 'side'){ closeSheets(); $('side').appendChild(body); } }
+  else if (body.parentElement.id !== 'statsSheet') $('statsSheet').appendChild(body);
+  if (S) renderStats();
+  if (LOGS.size) renderHistory();
+}
+wideMQ.addEventListener('change', placeStats); placeStats();
+// charts are drawn to the panel's width; redraw when it changes (scrollbar appearing, window resize)
+let statsRO; new ResizeObserver(() => { clearTimeout(statsRO); statsRO = setTimeout(() => { renderHeat(); if (LOGS.size) renderHistory(); }, 120); }).observe($('statsBody'));
+// on wide screens the history is always visible, so load it on connect and after each session
+let autoHistT;
+function autoHistory(delay){ if (!isWide()) return; clearTimeout(autoHistT); autoHistT = setTimeout(() => { if (S && !logWant && !historyWaiting) loadHistory(); }, delay); }
 
 
 let firstFrame = true;
 function onFrame(b){
   if (diagOn && curve && !curve.done && curve.diag) curve.diag.push([Date.now()-curve.start, [...b].map(x=>x.toString(16).padStart(2,'0')).join('')]);
   if (decodePresets(b)){ if (S) render(); return; }
-  if (decodeExtra(b)){ if ($('statsSheet').classList.contains('show')) renderStats(); return; }
+  if (decodeExtra(b)){ if (isWide() || $('statsSheet').classList.contains('show')) renderStats(); return; }
   if (LED_IN[b[0]]){ if (Date.now() > ledPendingUntil || !LEDS[LED_IN[b[0]]]) decodeLed(b); renderLights(); return; }
   const s = decodeStatus(b);
   if (!s) return;
   const unitChanged = S && S.unit!==s.unit;
   S = s;
-  if (firstFrame || unitChanged){ firstFrame=false; if (s.atomizer!=='none') mode=s.atomizer; pending=null; }
+  if (firstFrame || unitChanged){ setTimeout(renderStats, 0); firstFrame=false; if (s.atomizer!=='none') mode=s.atomizer; pending=null; }
   recordCurve();
   // drop local edits once the device reflects them (or after a timeout)
   if (pending){
@@ -1084,11 +1326,11 @@ $('btnLights').onclick = () => { ledEditSlot = null; renderLights(); openSheet('
 $('btnSettings').onclick = () => openSheet('settingsSheet');
 $('scrim').onclick = closeSheets;
 document.querySelectorAll('[data-close]').forEach(b => b.onclick = closeSheets);
-document.addEventListener('keydown', e => { if (e.key==='Escape') closeSheets(); });
+
 
 /* ---------- Wire up ---------- */
 $('btnConnect').onclick = connect;
-$('btnDemo').onclick = () => { demo = new Demo(); showApp(); setLink('Demo', true); $('devName').textContent='DEMO'; syncClock(); };
+$('btnDemo').onclick = () => { demo = new Demo(); showApp(); setLink('Demo', true); $('devName').textContent='DEMO'; syncClock(); autoHistory(1200); };
 document.querySelectorAll('#modeSeg button').forEach(b => b.onclick = () => { mode=b.dataset.mode; pending=null; presetMode='use'; render(); });
 $('tRange').oninput = e => edit(+e.target.value, curSet(mode).dur);
 $('dRange').oninput = e => edit(curSet(mode).temp, +e.target.value);
