@@ -7,6 +7,8 @@ This lets the UI run in any browser, including Firefox, which has no Web Bluetoo
 """
 import asyncio
 import json
+import os
+import signal
 import sys
 import webbrowser
 from pathlib import Path
@@ -163,7 +165,9 @@ async def idle_watchdog(app):
         if idle >= IDLE_EXIT_SECONDS:
             print("[bridge] no open tabs, shutting down", flush=True)
             await bridge.disconnect()
-            raise web.GracefulExit()
+            # GracefulExit raised inside a task is swallowed; SIGINT makes run_app shut down cleanly
+            os.kill(os.getpid(), signal.SIGINT)
+            return
 
 
 async def on_startup(app):
