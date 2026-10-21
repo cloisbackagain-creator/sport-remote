@@ -226,9 +226,36 @@ const store = { get(k,d){try{const v=localStorage.getItem('cs.'+k);return v==nul
 
 /* ---------- BLE ---------- */
 const $ = id => document.getElementById(id);
-if (!navigator.bluetooth) $('bleWarn').classList.remove('hidden');
+
+/* Desktop bridge (sport_remote.py): when served by it, Bluetooth goes through a WebSocket
+   so the page works in any browser, Firefox included. */
+let bridge = null;
+const isLocal = ['localhost','127.0.0.1'].includes(location.hostname);
+const bridgeReady = (isLocal ? fetch('/bridge').then(r => r.ok ? r.json() : null).catch(() => null) : Promise.resolve(null))
+  .then(j => { if (j && j.bridge) openBridge(); else if (!navigator.bluetooth) $('bleWarn').classList.remove('hidden'); });
+
+function openBridge(){
+  const ws = new WebSocket(`ws://${location.host}/ws`);
+  bridge = ws;
+  ws.onmessage = e => {
+    const m = JSON.parse(e.data);
+    if (m.type==='frame') onFrame(new Uint8Array(m.data));
+    else if (m.type==='error') toast(m.message);
+    else if (m.type==='status') onBridgeStatus(m);
+  };
+  ws.onclose = () => { setLink('Bridge closed', false); toast('Desktop bridge stopped. Relaunch Sport Remote.'); };
+}
+function onBridgeStatus(m){
+  const labels = {scanning:'Searching…', connecting:'Connecting…', connected:'Connected', reconnecting:'Reconnecting…', disconnected:'Disconnected', error:'Error'};
+  setLink(labels[m.state] || m.state, m.state==='connected');
+  $('btnConnect').textContent = m.state==='scanning' ? 'Searching…' : m.state==='connecting' ? 'Connecting…' : 'Connect';
+  $('btnConnect').disabled = m.state==='scanning' || m.state==='connecting';
+  if (m.state==='connected'){ $('devName').textContent = m.name || 'CARTA SPORT'; showApp(); syncClock(); }
+  if (m.state==='error') toast(m.message);
+}
 
 async function connect(){
+  if (bridge){ bridge.send(JSON.stringify({type:'connect'})); return; }
   if (!navigator.bluetooth){ toast('Bluetooth not available in this browser'); return; }
   try{
     dev = await navigator.bluetooth.requestDevice({
@@ -266,6 +293,7 @@ async function onDisconnect(){
 function send(bytes){
   const data = new Uint8Array(bytes);
   if (demo) { demo.handle(data); return Promise.resolve(); }
+  if (bridge) { bridge.send(JSON.stringify({type:'write', data:[...data]})); return Promise.resolve(); }
   if (!chr) { toast('Not connected'); return Promise.reject(new Error('not connected')); }
   // serialize writes: Web Bluetooth rejects overlapping GATT operations
   writeQ = writeQ.catch(()=>{}).then(() =>
@@ -426,8 +454,9 @@ $('tgLock').onclick = () => S && settingsCmd({lock:!S.locked});
 $('tgSave').onclick = () => S && settingsCmd({powerSave:!S.powerSave});
 $('vibRange').onchange = e => settingsCmd({vibration:+e.target.value});
 document.querySelectorAll('#unitSeg button').forEach(b => b.onclick = () => S && S.unit!==b.dataset.u && settingsCmd({unit:b.dataset.u}));
-$('btnPowerOff').onclick = () => { if (confirm('Power off the device?')) { wantConnected=false; settingsCmd({powerOff:true}); } };
-$('btnDisconnect').onclick = () => { wantConnected=false; if (dev?.gatt?.connected) dev.gatt.disconnect(); demo?.stop(); demo=null; S=null; firstFrame=true; showConnect(); };
+$('btnPowerOff').onclick = () => { if (confirm('Power off the device?')) { wantConnected=false; settingsCmd({powerOff:true});
+  if (bridge && !demo) setTimeout(() => bridge.send(JSON.stringify({type:'disconnect'})), 800); } };
+$('btnDisconnect').onclick = () => { wantConnected=false; if (dev?.gatt?.connected) dev.gatt.disconnect(); if (bridge && !demo) bridge.send(JSON.stringify({type:'disconnect'})); demo?.stop(); demo=null; S=null; firstFrame=true; showConnect(); };
 document.addEventListener('visibilitychange', () => { if (!document.hidden && dev && wantConnected && !dev.gatt.connected) onDisconnect(); });
 
 /* ---------- Demo device: speaks the same byte protocol ---------- */
