@@ -238,6 +238,8 @@ body.guest .actions .row3{grid-template-columns:1fr 1fr}
     <div class="logo">SPORT<span>.</span></div>
     <p class="note" id="connectNote">Power on your CARTA Sport (press the V button 5×), keep it close, then connect.</p>
     <button id="btnConnect" class="primary go">Connect</button>
+    <button id="btnRelay" class="primary go hidden">Connect from this phone</button>
+    <p id="relayNote" class="note hidden"></p>
     <button id="btnDemo" class="ghost">Try demo mode</button>
     <p id="bleWarn" class="note hidden">This browser can't use Bluetooth. On iPhone, open this page in <b>Bluefy</b> or the Focus V <b>V Browser</b>. On Android, use Chrome. On a PC, use the Sport Remote desktop launcher.</p>
   </section>
@@ -447,6 +449,8 @@ body.guest .actions .row3{grid-template-columns:1fr 1fr}
     <button class="toggle" id="tgDiag" aria-label="Record diagnostics"></button></div>
   <div class="set"><span>Diagnostics log <span class="note" id="diagCount"></span></span>
     <button id="btnDiagExport" class="ghost" style="flex:none">Export</button></div>
+  <div class="set hidden hostOnly" id="reclaimRow"><div><div>Connected through <span id="viaName">a guest</span></div><div class="note" style="text-align:left">Your PC lost the Carta, so a guest is carrying the Bluetooth link. Take it back once the Carta is near this PC.</div></div>
+    <button id="btnReclaim" class="ghost" style="flex:none">Use this PC</button></div>
   <div class="set" style="gap:8px">
     <button id="btnDisconnect" class="ghost" style="flex:1">Disconnect</button>
     <button id="btnPowerOff" class="ghost hostOnly" style="flex:1;color:var(--danger)">Power off</button>
@@ -555,6 +559,9 @@ const $ = id => document.getElementById(id);
 /* Desktop bridge (sport_remote.py): when served by it, Bluetooth goes through a WebSocket
    so the page works in any browser, Firefox included. */
 let bridge = null;
+// what to call this device in messages ("Connect from this phone" / "this PC")
+const DEV_KIND = /iPad/.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1) ? 'tablet'
+  : /Android|iPhone|iPod|Mobile/i.test(navigator.userAgent) ? 'phone' : 'PC';
 let guest = null;   // {role, name} when this page joined someone's Carta through an invite link
 const onPages = /github\.io$/.test(location.hostname) || !/^https?:$/.test(location.protocol);
 (onPages ? Promise.resolve(null) : fetch('/bridge').then(r => r.ok ? r.json() : null).catch(() => null))
@@ -596,11 +603,14 @@ function openBridge(asGuest){
       document.body.classList.toggle('watch', m.role==='watch');
       toast(m.role==='watch' ? `Watching as ${m.name}` : `Joined as ${m.name}`);
     }
+    else if (m.type==='write'){ if (relayDev) bleWrite(new Uint8Array(m.data)).catch(()=>{}); }
+    else if (m.type==='relay'){ if (m.action==='release'){ if (m.message) toast(m.message); else if (relayDev?.gatt?.connected) toast('The host took the Bluetooth link back'); relayStop(); } }
     else if (m.type==='share') renderShare(m);
     else if (m.type==='qr') showQr(m);
     else if (m.type==='guest'){ toast(`${m.name} joined`); notify('Guest joined', `${m.name} joined your Carta`, 'guest'); }
   };
   ws.onclose = () => {
+    relayStop();
     setLink(asGuest ? 'Offline' : 'Bridge closed', false);
     if (asGuest){ if (!leaving) guestNote('The host stopped sharing or closed Sport Remote. Reload to try again.'); }
     else toast('Desktop bridge stopped. Relaunch Sport Remote.');
@@ -608,7 +618,10 @@ function openBridge(asGuest){
 }
 function onBridgeStatus(m){
   const labels = {scanning:'Searching…', connecting:'Connecting…', connected:'Connected', reconnecting:'Reconnecting…', waiting:'Waiting for Carta', disconnected:'Disconnected', error:'Error'};
-  setLink(labels[m.state] || m.state, m.state==='connected');
+  const viaMe = m.via && relayDev?.gatt?.connected;
+  setLink(m.state==='connected' && m.via ? (viaMe ? `Via this ${DEV_KIND}` : `Via ${m.via}`) : (labels[m.state] || m.state), m.state==='connected');
+  $('reclaimRow').classList.toggle('hidden', !(m.state==='connected' && m.via));
+  if (m.via) $('viaName').textContent = m.via;
   bridgeState = m.state;
   const busy = ['scanning','connecting','waiting','reconnecting'].includes(m.state);
   // while the bridge is looking for the Carta, the button stops the search
@@ -619,6 +632,15 @@ function onBridgeStatus(m){
     $('btnDemo').classList.add('hidden');
     $('btnConnect').classList.toggle('hidden', busy);
     $('connectNote').textContent = busy ? 'Waiting for the host\'s Carta to turn on…' : 'The host\'s Carta isn\'t connected.';
+    // out of the PC's range? a guest who can control sessions can carry the link from here
+    const canRelay = guest && guest.role==='control' && m.state!=='connected';
+    $('btnRelay').textContent = `Connect from this ${DEV_KIND}`;
+    $('btnRelay').classList.toggle('hidden', !(canRelay && navigator.bluetooth));
+    $('relayNote').classList.toggle('hidden', !canRelay);
+    $('relayNote').textContent = navigator.bluetooth
+      ? `If the Carta is near you, connect it from this ${DEV_KIND} and the link runs through here for everyone.`
+      : (DEV_KIND==='PC' ? 'To connect the Carta from this PC, open the link in Chrome, Edge or Opera.'
+                         : `To connect the Carta from this ${DEV_KIND}, open the link in ${/iPhone|iPad|Macintosh/.test(navigator.userAgent) ? 'Bluefy or the Focus V V Browser' : 'Chrome'}.`);
   }
   if (m.state==='connected'){ $('devName').textContent = m.name || 'CARTA SPORT'; showApp(); syncClock(); bridge.send(JSON.stringify({type:'info'})); autoHistory(guest ? 4000 : 2500); }
   if (m.state==='error') toast(m.message);
@@ -686,6 +708,9 @@ function send(bytes){
   const data = new Uint8Array(bytes);
   if (demo) { demo.handle(data); return Promise.resolve(); }
   if (bridge) { bridge.send(JSON.stringify({type:'write', data:[...data]})); return Promise.resolve(); }
+  return bleWrite(data);
+}
+function bleWrite(data){
   if (!chr) { toast('Not connected'); return Promise.reject(new Error('not connected')); }
   // serialize writes: Web Bluetooth rejects overlapping GATT operations
   // Browsers differ: Focus V's V Browser has no chr.properties (the flag sits on the
@@ -1510,6 +1535,43 @@ $('btnDisconnect').onclick = () => { if (guest){ leaving = true; bridge.close();
   wantConnected=false; if (dev?.gatt?.connected) dev.gatt.disconnect(); if (bridge && !demo) bridge.send(JSON.stringify({type:'disconnect'}));
   demo?.stop(); demo=null; S=null; firstFrame=true; showConnect(); };
 document.addEventListener('visibilitychange', () => { if (!document.hidden && dev && wantConnected && !dev.gatt.connected) onDisconnect(); });
+
+/* ---------- Relay: carry the host's Bluetooth link from this device ---------- */
+// Guests who can control sessions can connect the Carta here when the host PC can't reach it.
+// Frames go up to the host's bridge (which shares them with everyone) and the bridge sends the
+// writes back down; this page's own buttons still go through the bridge and its permission checks.
+let relayDev = null;
+async function relayConnect(){
+  try{
+    relayDev = await navigator.bluetooth.requestDevice({filters:[{services:[SVC]},{services:[DEVICE_INFO]}], optionalServices:[SVC]});
+    relayDev.addEventListener('gattserverdisconnected', relayDown);
+    $('connectNote').textContent = 'Connecting…';
+    const server = await relayDev.gatt.connect();
+    const svc = await server.getPrimaryService(SVC);
+    chr = await svc.getCharacteristic(WRITE);
+    const n = await svc.getCharacteristic(NOTIFY);
+    n.addEventListener('characteristicvaluechanged', e => {
+      const v = e.target.value;
+      if (bridge && bridge.readyState===1) bridge.send(JSON.stringify({type:'frame', data:[...new Uint8Array(v.buffer, v.byteOffset || 0, v.byteLength ?? v.buffer.byteLength)]}));
+    });
+    await n.startNotifications();
+    bridge.send(JSON.stringify({type:'relay', action:'up', name: relayDev.name || 'CARTA SPORT', kind: DEV_KIND}));
+    toast(`The Carta is connected through this ${DEV_KIND}. Keep this page open.`);
+  }catch(e){
+    if (e.name!=='NotFoundError') toast(`Couldn't connect: ${e.message || e.name}`);
+    relayStop();
+  }
+}
+function relayDown(){
+  chr = null;
+  if (bridge && bridge.readyState===1) bridge.send(JSON.stringify({type:'relay', action:'down'}));
+}
+function relayStop(){
+  const d = relayDev; relayDev = null; chr = null;
+  if (d && d.gatt && d.gatt.connected) d.gatt.disconnect();   // fires gattserverdisconnected -> relayDown
+}
+$('btnRelay').onclick = relayConnect;
+$('btnReclaim').onclick = () => { bridge && bridge.send(JSON.stringify({type:'reclaim'})); toast('Taking the Carta back… keep it near this PC'); };
 
 /* ---------- Sharing (desktop bridge only): invite links through a Cloudflare tunnel ---------- */
 let SHARE = null, qrFor = null;

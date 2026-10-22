@@ -8,6 +8,10 @@ This lets the UI run in any browser, including Firefox, which has no Web Bluetoo
 Sharing: the host can open a Cloudflare quick tunnel to a second, guest-only port (8767).
 Guests need a personal invite link carrying a random 256-bit key; they can only start or
 cancel sessions (or just watch), never change settings, presets, lights or power.
+
+Relay: when the PC can't reach the Carta (out of range), a guest who can control sessions may
+connect it from their phone or PC (Web Bluetooth). Their page then carries the link for everyone:
+it forwards the Carta's frames here and performs the writes this bridge sends it.
 """
 import asyncio
 import json
@@ -67,6 +71,8 @@ class Bridge:
         self.write_no_resp = True
         self.task: asyncio.Task | None = None
         self.state = {"type": "status", "state": "disconnected"}
+        self.relay: web.WebSocketResponse | None = None   # guest page carrying the Bluetooth link
+        self.relay_name = ""
 
     async def send_to(self, targets, msg):
         dead = []
@@ -103,8 +109,13 @@ class Bridge:
         switched on, reconnect after it sleeps or drops, never give up on its own."""
         attempt = 0
         while self.want:
+            if self.relay:              # a guest's phone holds the Carta; the PC can't connect anyway
+                await asyncio.sleep(1)
+                continue
             try:
                 dev = await self.find_device()
+                if self.relay:
+                    continue
                 if not dev:
                     await self.status("waiting", message="Waiting for the Carta. Press V 5x to turn it on.")
                     await asyncio.sleep(2)
@@ -141,8 +152,31 @@ class Bridge:
         self.want = True
         self.task = asyncio.create_task(self.connect_loop())
 
+    # ---- relay through a guest's phone ----
+    async def relay_up(self, ws, who, device_name, kind):
+        self.relay, self.relay_name = ws, f"{who}'s {kind}"
+        self.name = device_name or "CARTA SPORT"
+        await self.status("connected", via=self.relay_name)
+
+    async def relay_down(self, message=None):
+        if not self.relay:
+            return
+        who, self.relay = self.relay_name, None
+        if self.want:
+            await self.status("waiting", message=message or f"The Carta dropped from {who}. Reconnecting when it's back.")
+        else:
+            await self.status("disconnected")
+
+    async def release_relay(self):
+        """Ask the relaying phone to let go, e.g. so the PC can take the Carta back."""
+        if self.relay:
+            await self.send_to([self.relay], {"type": "relay", "action": "release"})
+
     async def disconnect(self):
         self.want = False
+        if self.relay:
+            await self.release_relay()
+            return
         if self.client and self.client.is_connected:
             await self.client.disconnect()
         elif self.task and not self.task.done():
@@ -151,7 +185,7 @@ class Bridge:
 
     async def info(self, ws=None):
         """Read the standard GATT info characteristics (model, serial, firmware...)."""
-        if not (self.client and self.client.is_connected):
+        if self.relay or not (self.client and self.client.is_connected):
             return
         out = {}
         for key, short in INFO_CHARS.items():
@@ -166,6 +200,9 @@ class Bridge:
     async def write(self, data, ws=None):
         async def err(m):
             await (self.send_to([ws], {"type": "error", "message": m}) if ws else self.broadcast({"type": "error", "message": m}))
+        if self.relay:
+            await self.send_to([self.relay], {"type": "write", "data": data})
+            return
         if not (self.client and self.client.is_connected):
             await err("Not connected")
             return
@@ -390,6 +427,9 @@ async def ws_handler(request):
             await bridge.info()
         elif t == "write" and isinstance(m.get("data"), list):
             await bridge.write([int(b) & 0xFF for b in m["data"]])
+        elif t == "reclaim":           # use the PC's own Bluetooth again
+            await bridge.release_relay()
+            await bridge.connect()
         elif t == "share":
             try:
                 await handle_share(ws, m)
@@ -436,16 +476,31 @@ async def guest_ws(request):
     async for msg in ws:
         if msg.type != WSMsgType.TEXT or ws not in bridge.clients:
             continue
-        now = time.monotonic()
-        stamps = [t for t in stamps if now - t < 1] + [now]
-        if len(stamps) > GUEST_MSGS_PER_SEC or not guests.valid(gid):
-            continue
         try:
             m = json.loads(msg.data)
         except ValueError:
             continue
         t = m.get("type")
-        if t == "connect":
+        if t == "frame":
+            # the Carta speaking through this guest's phone
+            if bridge.relay is ws and isinstance(m.get("data"), list) and 0 < len(m["data"]) <= 32:
+                await bridge.broadcast({"type": "frame", "data": [int(b) & 0xFF for b in m["data"]]})
+            continue
+        now = time.monotonic()
+        stamps = [t for t in stamps if now - t < 1] + [now]
+        if len(stamps) > GUEST_MSGS_PER_SEC or not guests.valid(gid):
+            continue
+        if t == "relay" and g["role"] == "control":
+            if m.get("action") == "up":
+                if (bridge.client and bridge.client.is_connected) or (bridge.relay and bridge.relay is not ws):
+                    await ws.send_json({"type": "relay", "action": "release", "message": "The Carta is already connected."})
+                else:
+                    kind = m.get("kind") if m.get("kind") in ("phone", "tablet", "PC") else "device"
+                    print(f"[share] {g['name']}'s {kind} is carrying the Carta", flush=True)
+                    await bridge.relay_up(ws, g["name"], str(m.get("name", ""))[:32], kind)
+            elif m.get("action") == "down" and bridge.relay is ws:
+                await bridge.relay_down()
+        elif t == "connect":
             await bridge.connect()
         elif t == "info":
             await bridge.info(ws)
@@ -455,6 +510,8 @@ async def guest_ws(request):
                 await bridge.write(data, ws)
             else:
                 await ws.send_json({"type": "error", "message": "Only the host can change that."})
+    if bridge.relay is ws:
+        await bridge.relay_down(f"{g['name']} left, so the Carta disconnected. Reconnecting when it's back.")
     if bridge.clients.pop(ws, None):
         print(f"[share] {g['name']} left", flush=True)
     await push_share()
