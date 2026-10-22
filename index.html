@@ -113,8 +113,14 @@ header h1{font-size:16px;margin:0;flex:1;white-space:nowrap;overflow:hidden;text
 .ptiles .pn{font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--dim);max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 3px}
 .ptiles .pt{font-size:17px;font-weight:700;font-variant-numeric:tabular-nums}
 .ptiles .pd{font-size:11px;color:var(--dim);font-variant-numeric:tabular-nums}
-.ptiles button.sel{border-color:var(--accent);background:rgba(25,195,165,.12)}
-.ptiles button.sel .pt,.ptiles button.sel .pn{color:var(--accent)}
+/* each preset wears the color the Carta shows for it (same palette as the official app) */
+.ptiles button{--pc:var(--accent)}
+.ptiles button::before{content:"";position:absolute;left:12px;right:12px;top:-1px;height:3px;border-radius:0 0 3px 3px;background:var(--pc);opacity:.85}
+.ptiles button.sel{border-color:var(--pc);background:rgba(25,195,165,.12);background:color-mix(in srgb,var(--pc) 16%,var(--card2))}
+.ptiles button.sel .pt,.ptiles button.sel .pn{color:var(--pc)}
+.ptiles button.flash{animation:devpick .5s ease-in-out 2}
+@keyframes devpick{50%{transform:scale(1.08);box-shadow:0 0 14px var(--pc)}}
+.pdot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;vertical-align:1px}
 .ptiles.editing button{border-style:dashed}
 .ptiles.editing button::after{content:"✎";position:absolute;top:2px;right:5px;font-size:10px;color:var(--dim)}
 .ptiles.picking button{border-color:var(--accent);border-style:dashed;animation:pick 1s ease-in-out infinite}
@@ -749,6 +755,7 @@ function syncClock(){
 /* ---------- Commands ---------- */
 function sessionCmd(action, extra=0, override={}){
   if (!S) return;
+  appPickAt = Date.now();
   const unit = S.unit==='C' ? UNIT_C : UNIT_F;
   let fT=S.flowerTemp, cT=S.concTemp, fD=S.flowerDur, cD=S.concDur, fR=S.flowerRank, cR=S.concRank;
   if (override.mode==='flower'){ fT=override.temp; fD=override.dur; fR=matchRank('flower',fT,fD); }
@@ -820,11 +827,21 @@ function renderControls(){
 let presetMode = 'use';   // 'use' | 'edit' | 'pick'
 let peState = null;       // {mode, slot, temp, dur}
 const pname = (m,i) => store.get(`pname.${m}.${i}`, '') || `P${i+1}`;
+// Preset colors as the Carta shows them (from the official app): 1 blue, 2 yellow, 3 green, 4 purple, 5 red
+const PCOL = [null, '#5AC8FA', '#FFCC00', '#34C759', '#AF52DE', '#FF2D55'];
+let devPick = null;       // {mode, rank, at}: preset just changed with the button on the Carta
+let appPickAt = 0;        // when this app last changed the session settings
+// The highlighted preset: what's being edited here, else the slot the device reports
+function activeRank(m, v){
+  if (pending && pending.mode===m) return matchRank(m, +pending.temp, +pending.dur);
+  return rankOf(m) || matchRank(m, +v.temp, +v.dur);
+}
 function renderPresets(v){
-  const list = presetsFor(mode), r = S ? matchRank(mode, +v.temp, +v.dur) : 0;
-  const tiles = list.length ? list.map((p,i)=>`<button class="${presetMode==='use' && r===i+1?'sel':''}" data-p="${i}" aria-label="${pname(mode,i)}: ${p.temp} degrees, ${fmtTime(p.dur)}">
+  const list = presetsFor(mode), r = S ? activeRank(mode, v) : 0;
+  const flash = devPick && devPick.mode===mode && Date.now()-devPick.at < 1200 ? devPick.rank : 0;
+  const tiles = list.length ? list.map((p,i)=>`<button class="${presetMode==='use' && r===i+1?'sel':''}${flash===i+1?' flash':''}" style="--pc:${PCOL[i+1]}" data-p="${i}" aria-label="${pname(mode,i)}: ${p.temp} degrees, ${fmtTime(p.dur)}">
       <span class="pn">${pname(mode,i).replace(/</g,'&lt;')}</span><span class="pt">${p.temp}°</span><span class="pd">${fmtTime(p.dur)}</span></button>`).join('')
-    : [1,2,3,4,5].map(i=>`<button disabled><span class="pn">P${i}</span><span class="pt">--</span><span class="pd">--</span></button>`).join('');
+    : [1,2,3,4,5].map(i=>`<button disabled style="--pc:${PCOL[i]}"><span class="pn">P${i}</span><span class="pt">--</span><span class="pd">--</span></button>`).join('');
   setHTML($('ptiles'), tiles);
   $('ptiles').classList.toggle('editing', presetMode==='edit');
   $('ptiles').classList.toggle('picking', presetMode==='pick');
@@ -885,7 +902,8 @@ function render(){
   const st = $('state');
   st.textContent = warming ? 'Heating' : heating ? 'Ready' : (S.atomizer==='none' ? 'No atomizer' : 'Idle');
   st.className = 'state' + (warming ? ' hot' : heating ? ' ready' : '');
-  $('setLbl').textContent = heating ? 'Target' : 'Set';
+  const hr = heating ? rankOf(runMode) : activeRank(mode, shown);
+  setHTML($('setLbl'), (hr && PCOL[hr] ? `<i class="pdot" style="background:${PCOL[hr]}"></i>` : '') + (heating ? 'Target' : 'Set'));
   $('setTemp').textContent = shown.temp;
   $('timeLine').textContent = heating ? `${fmtTime(S.remaining)} left` : fmtTime(+shown.dur);
   renderLastLine(heating);
@@ -1390,6 +1408,15 @@ function onFrame(b){
   const s = decodeStatus(b);
   if (!s) return;
   const unitChanged = S && S.unit!==s.unit;
+  // preset changed on the Carta itself (its V button), not by this app: follow it and point it out
+  if (S && !firstFrame && Date.now()-appPickAt > 3000){
+    const m = s.flowerRank!==S.flowerRank ? 'flower' : s.concRank!==S.concRank ? 'concentrate' : null;
+    if (m){
+      const rank = m==='flower' ? s.flowerRank : s.concRank;
+      pending = null; presetMode = 'use';
+      if (rank){ devPick = {mode:m, rank, at:Date.now()}; setTimeout(() => S && render(), 1300); }
+    }
+  }
   S = s;
   if (firstFrame || unitChanged){ setTimeout(renderStats, 0); firstFrame=false; if (s.atomizer!=='none') mode=s.atomizer; pending=null; }
   recordCurve();
