@@ -2,13 +2,14 @@
 # Launch Sport Remote: start the Bluetooth bridge and open the app in its own window.
 #   ./sport-remote.sh            own window (falls back to the default browser if GTK/WebKit is missing)
 #   ./sport-remote.sh --browser  open in the default browser instead
-# First run sets up a private Python environment with the two libraries the bridge needs.
+# First run sets up a private Python environment with the libraries the bridge needs.
 set -e
 cd "$(dirname "$(readlink -f "$0")")"
 if [ ! -x .venv/bin/python ]; then
   python3 -m venv .venv
-  .venv/bin/pip install -q bleak aiohttp
 fi
+# bleak: Bluetooth, aiohttp: local web server, segno: QR codes for invite links
+.venv/bin/python -c 'import bleak, aiohttp, segno' 2>/dev/null || .venv/bin/pip install -q bleak aiohttp segno
 
 if [ "$1" = "--browser" ]; then
   exec .venv/bin/python sport_remote.py

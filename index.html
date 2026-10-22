@@ -24,6 +24,9 @@ button:disabled{opacity:.35;pointer-events:none}
 .danger{background:var(--danger);color:#2a0606;font-weight:700}
 .ghost{background:transparent;border:1px solid var(--line)}
 .hidden{display:none!important}
+body.guest .hostOnly{display:none!important}
+body.watch .ctlOnly{display:none!important}
+body.watch #modeSeg, body.watch #ptiles, body.watch .adjust{pointer-events:none;opacity:.55}
 .card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:12px}
 .lbl{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
 .num{font-variant-numeric:tabular-nums}
@@ -47,6 +50,7 @@ button:disabled{opacity:.35;pointer-events:none}
   #side .sec:first-child{margin-top:0}
   #btnStats{display:none}
   #mainCol .actions .row3{grid-template-columns:1fr 1fr}
+  body.guest #mainCol .actions .row3{grid-template-columns:1fr}
   .hist{max-height:none}
 }
 header{display:flex;align-items:center;gap:8px}
@@ -129,6 +133,7 @@ input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;bac
 .actions .row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .actions .row3{grid-template-columns:1fr 1fr 1fr}
 .actions .row3 button{padding:11px 4px;font-size:14px}
+body.guest .actions .row3{grid-template-columns:1fr 1fr}
 /* keyboard shortcuts */
 .keys{display:grid;grid-template-columns:1fr auto;gap:6px 12px;align-items:center;font-size:14px;margin-top:6px}
 .keys button.kbd{min-width:64px;padding:5px 10px;font:600 13px ui-monospace,SFMono-Regular,Menlo,monospace;border:1px solid var(--line);border-bottom-width:2px;background:var(--card2);border-radius:8px}
@@ -170,6 +175,20 @@ input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;bac
 .set{display:flex;justify-content:space-between;align-items:center;padding:11px 0;border-top:1px solid var(--line);gap:12px}
 .set.col{flex-direction:column;align-items:stretch;gap:2px}
 .set.col>div{display:flex;justify-content:space-between}
+.set.col>.glist,.set.col>#qrBox{display:block}
+.glist .g{display:flex;align-items:center;gap:6px;padding:8px 0;border-top:1px solid var(--line)}
+.glist .g:first-child{border-top:0}
+.glist .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.glist .nm .note{display:block;text-align:left}
+.glist button{flex:none;padding:6px 10px;font-size:13px}
+.glist .dot{flex:none}
+.set.col>.gadd{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;justify-content:flex-start}
+.gadd input,.gadd select{font:inherit;font-size:14px;color:var(--text);background:var(--card2);border:1px solid var(--line);border-radius:10px;padding:8px}
+.gadd input{flex:1 1 100%;min-width:0}
+.gadd select{flex:1 1 0;min-width:0}
+.gadd button{flex:none;padding:8px 14px}
+.qr{background:#fff;border-radius:12px;padding:6px;width:min(240px,70vw);margin:8px auto 2px}
+.qr svg{width:100%;height:auto;display:block}
 .toggle{width:50px;height:28px;padding:0;border-radius:99px;background:var(--card2);position:relative;flex:none}
 .toggle::after{content:"";position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:#aab;transition:left .2s,background .2s}
 .toggle.on{background:var(--accent2)}.toggle.on::after{left:25px;background:#fff}
@@ -255,8 +274,8 @@ input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;bac
       </div>
       <div class="phead">
         <span class="lbl" id="pheadLbl">Presets</span>
-        <button class="save hidden" id="btnSaveCustom">＋ Save as preset</button>
-        <button id="btnEditPresets" aria-pressed="false">✎ Edit</button>
+        <button class="save hidden hostOnly" id="btnSaveCustom">＋ Save as preset</button>
+        <button id="btnEditPresets" class="hostOnly" aria-pressed="false">✎ Edit</button>
       </div>
       <div class="ptiles" id="ptiles"></div>
       <div class="adjust">
@@ -282,13 +301,13 @@ input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;bac
     </div>
 
     <div class="actions">
-      <button id="btnStart" class="primary go">Start heating</button>
-      <div class="row" id="runRow">
+      <button id="btnStart" class="primary go ctlOnly">Start heating</button>
+      <div class="row ctlOnly" id="runRow">
         <button id="btnAdd">+10 s</button>
         <button id="btnCancel" class="danger">Cancel</button>
       </div>
       <div class="row row3">
-        <button id="btnLights" class="ghost">💡 Lights</button>
+        <button id="btnLights" class="ghost hostOnly">💡 Lights</button>
         <button id="btnStats" class="ghost">📊 Stats</button>
         <button id="btnSettings" class="ghost">⚙ Settings</button>
       </div>
@@ -386,21 +405,34 @@ input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;bac
 <!-- Settings sheet -->
 <section class="sheet" id="settingsSheet" aria-label="Settings">
   <h2>Settings <button class="ghost" data-close>Done</button></h2>
-  <div class="set"><div><div>Preset lock</div><div class="note" style="text-align:left">Keeps the device on the current preset. Note: a single press of the V button then starts a session (normally it takes two).</div></div>
+  <div class="set hostOnly"><div><div>Preset lock</div><div class="note" style="text-align:left">Keeps the device on the current preset. Note: a single press of the V button then starts a session (normally it takes two).</div></div>
     <button class="toggle" id="tgLock" aria-label="Preset lock"></button></div>
-  <div class="set"><span>Power saving</span><button class="toggle" id="tgSave" aria-label="Power saving"></button></div>
-  <div class="set col"><div><span>Vibration</span><b class="num" id="vibVal">--</b></div>
+  <div class="set hostOnly"><span>Power saving</span><button class="toggle" id="tgSave" aria-label="Power saving"></button></div>
+  <div class="set col hostOnly"><div><span>Vibration</span><b class="num" id="vibVal">--</b></div>
     <input id="vibRange" type="range" min="0" max="10" step="1"></div>
-  <div class="set"><span>Units</span>
+  <div class="set hostOnly"><span>Units</span>
     <div class="seg" id="unitSeg" style="width:130px"><button data-u="F">°F</button><button data-u="C">°C</button></div></div>
   <div class="set"><span>Battery</span><span id="setBat" class="note">--</span></div>
-  <div class="set"><div><div>Recalibrate atomizer</div><div class="note" style="text-align:left">Only when fully cool (off 10+ min). Fixes wrong temperature readings.</div></div>
+  <div class="set col hidden" id="shareBox">
+    <div><div><div>Share with friends</div><div class="note" style="text-align:left">Guests join from anywhere with their own invite link. They can start and cancel sessions (or only watch), never change settings, presets, lights or power.</div></div>
+      <button class="toggle" id="tgShare" aria-label="Share with friends"></button></div>
+    <div class="note" id="shareStatus" style="text-align:left;margin-top:4px"></div>
+    <div class="glist" id="guestList"></div>
+    <div id="qrBox" class="hidden"></div>
+    <div class="gadd">
+      <input id="gName" type="text" maxlength="24" placeholder="New guest's name" autocomplete="off" aria-label="Guest name">
+      <select id="gRole" aria-label="Guest can"><option value="control">Can start sessions</option><option value="watch">Watch only</option></select>
+      <select id="gDays" aria-label="Invite expires"><option value="1">1 day</option><option value="7">7 days</option><option value="30">30 days</option><option value="0">No expiry</option></select>
+      <button class="ghost" id="btnGAdd">Invite</button>
+    </div>
+  </div>
+  <div class="set hostOnly"><div><div>Recalibrate atomizer</div><div class="note" style="text-align:left">Only when fully cool (off 10+ min). Fixes wrong temperature readings.</div></div>
     <button id="btnRecal" class="ghost" style="flex:none">Recalibrate</button></div>
-  <div class="set"><div><div>Fix early "ready"</div><div class="note" style="text-align:left">If the Carta skips heat-up (starts its countdown at once), cancel and restart so it takes a real reading.</div></div>
+  <div class="set hostOnly"><div><div>Fix early "ready"</div><div class="note" style="text-align:left">If the Carta skips heat-up (starts its countdown at once), cancel and restart so it takes a real reading.</div></div>
     <button class="toggle" id="tgAutoFix" aria-label="Fix early ready"></button></div>
   <div class="set"><div><div>Desktop notifications</div><div class="note" style="text-align:left">Ready to hit, 10 s left, session done, low battery. Shown when the app isn't focused.</div></div>
     <button class="toggle" id="tgNotify" aria-label="Desktop notifications"></button></div>
-  <div class="set"><div><div>Connect automatically</div><div class="note" style="text-align:left">Desktop app: connect on open and whenever the Carta turns on.</div></div>
+  <div class="set hostOnly"><div><div>Connect automatically</div><div class="note" style="text-align:left">Desktop app: connect on open and whenever the Carta turns on.</div></div>
     <button class="toggle" id="tgAuto" aria-label="Connect automatically"></button></div>
   <div class="set col">
     <div><span>Keyboard shortcuts</span><button class="toggle" id="tgKeys" aria-label="Keyboard shortcuts"></button></div>
@@ -414,7 +446,7 @@ input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;bac
     <button id="btnDiagExport" class="ghost" style="flex:none">Export</button></div>
   <div class="set" style="gap:8px">
     <button id="btnDisconnect" class="ghost" style="flex:1">Disconnect</button>
-    <button id="btnPowerOff" class="ghost" style="flex:1;color:var(--danger)">Power off</button>
+    <button id="btnPowerOff" class="ghost hostOnly" style="flex:1;color:var(--danger)">Power off</button>
   </div>
   <p class="note" style="margin-top:8px">Unofficial controller. Not affiliated with Focus V.</p>
 </section>
@@ -520,24 +552,56 @@ const $ = id => document.getElementById(id);
 /* Desktop bridge (sport_remote.py): when served by it, Bluetooth goes through a WebSocket
    so the page works in any browser, Firefox included. */
 let bridge = null;
-const isLocal = ['localhost','127.0.0.1'].includes(location.hostname);
-(isLocal ? fetch('/bridge').then(r => r.ok ? r.json() : null).catch(() => null) : Promise.resolve(null))
-  .then(j => { if (j && j.bridge) openBridge(); else if (!navigator.bluetooth) $('bleWarn').classList.remove('hidden'); });
+let guest = null;   // {role, name} when this page joined someone's Carta through an invite link
+const onPages = /github\.io$/.test(location.hostname) || !/^https?:$/.test(location.protocol);
+(onPages ? Promise.resolve(null) : fetch('/bridge').then(r => r.ok ? r.json() : null).catch(() => null))
+  .then(j => { if (j && j.bridge) openBridge(!!j.guest); else if (!navigator.bluetooth) $('bleWarn').classList.remove('hidden'); });
 
-function openBridge(){
-  const ws = new WebSocket(`ws://${location.host}/ws`);
+// Guest page: the invite key comes after '#' (never sent to any server), is kept on this phone,
+// then removed from the address bar so it isn't shared by accident.
+function guestNote(text){
+  showConnect(); $('connectNote').textContent = text;
+  $('btnConnect').classList.add('hidden'); $('btnDemo').classList.add('hidden');
+}
+let leaving = false;
+function openBridge(asGuest){
+  let key = null;
+  if (asGuest){
+    document.body.classList.add('guest');
+    const k = new URLSearchParams(location.hash.slice(1)).get('k');
+    if (k){ store.set('guestKey', k); history.replaceState(null, '', location.pathname); }
+    key = store.get('guestKey', null);
+    $('btnDisconnect').textContent = 'Leave';
+    if (!key){ guestNote('This is a shared Sport Remote. Open the invite link the host sent you.'); return; }
+    $('connectNote').textContent = 'Joining…';
+  }
+  const ws = new WebSocket(`${location.protocol==='https:'?'wss':'ws'}://${location.host}/ws`);
   bridge = ws;
+  ws.onopen = () => ws.send(JSON.stringify(asGuest ? {type:'auth', key} : {type:'share', action:'status'}));
   ws.onmessage = e => {
     const m = JSON.parse(e.data);
     if (m.type==='frame') onFrame(new Uint8Array(m.data));
     else if (m.type==='error') toast(m.message);
     else if (m.type==='status'){
       const first = bridgeState===null; onBridgeStatus(m);
-      if (first && m.state==='disconnected' && store.get('autoConnect', true)) ws.send(JSON.stringify({type:'connect'}));
+      if (first && !asGuest && m.state==='disconnected' && store.get('autoConnect', true)) ws.send(JSON.stringify({type:'connect'}));
     }
     else if (m.type==='info'){ Object.assign(INFO, m.data); renderStats(); }
+    else if (m.type==='auth'){
+      if (!m.ok){ if (/valid/.test(m.message)) store.set('guestKey', null); leaving = true; guestNote(m.message); return; }
+      guest = {role: m.role, name: m.name};
+      document.body.classList.toggle('watch', m.role==='watch');
+      toast(m.role==='watch' ? `Watching as ${m.name}` : `Joined as ${m.name}`);
+    }
+    else if (m.type==='share') renderShare(m);
+    else if (m.type==='qr') showQr(m);
+    else if (m.type==='guest'){ toast(`${m.name} joined`); notify('Guest joined', `${m.name} joined your Carta`, 'guest'); }
   };
-  ws.onclose = () => { setLink('Bridge closed', false); toast('Desktop bridge stopped. Relaunch Sport Remote.'); };
+  ws.onclose = () => {
+    setLink(asGuest ? 'Offline' : 'Bridge closed', false);
+    if (asGuest){ if (!leaving) guestNote('The host stopped sharing or closed Sport Remote. Reload to try again.'); }
+    else toast('Desktop bridge stopped. Relaunch Sport Remote.');
+  };
 }
 function onBridgeStatus(m){
   const labels = {scanning:'Searching…', connecting:'Connecting…', connected:'Connected', reconnecting:'Reconnecting…', waiting:'Waiting for Carta', disconnected:'Disconnected', error:'Error'};
@@ -547,7 +611,13 @@ function onBridgeStatus(m){
   // while the bridge is looking for the Carta, the button stops the search
   $('btnConnect').textContent = busy ? 'Stop searching' : 'Connect';
   $('connectNote').textContent = busy ? (m.message || 'Looking for your Carta… press V 5× to turn it on.') : 'Power on your CARTA Sport (press the V button 5×), keep it close, then connect.';
-  if (m.state==='connected'){ $('devName').textContent = m.name || 'CARTA SPORT'; showApp(); syncClock(); bridge.send(JSON.stringify({type:'info'})); autoHistory(2500); }
+  if (document.body.classList.contains('guest')){
+    // guests can ask the host's PC to connect, but not stop it searching
+    $('btnDemo').classList.add('hidden');
+    $('btnConnect').classList.toggle('hidden', busy);
+    $('connectNote').textContent = busy ? 'Waiting for the host\'s Carta to turn on…' : 'The host\'s Carta isn\'t connected.';
+  }
+  if (m.state==='connected'){ $('devName').textContent = m.name || 'CARTA SPORT'; showApp(); syncClock(); bridge.send(JSON.stringify({type:'info'})); autoHistory(guest ? 4000 : 2500); }
   if (m.state==='error') toast(m.message);
 }
 
@@ -852,11 +922,11 @@ function recordCurve(){
   if (heating && curve.readyAt==null){
     if (S.remaining < curve.startRem){
       curve.readyAt = (now - curve.start)/1000;
-      if (!(autoFix && !curve.retry && curve.readyAt <= 2.5)) onReady(curve);
+      if (!(autoFix && !guest && !curve.retry && curve.readyAt <= 2.5)) onReady(curve);
       // Firmware bug: at start the Carta trusts its last saved reading instead of measuring the coil.
       // If that stale value is near the target it calls itself ready at once (countdown starts, ready
       // buzz) while the coil is still cooler. Cancelling makes it take a real reading; restart after.
-      if (autoFix && !curve.retry && curve.readyAt <= 2.5){
+      if (autoFix && !guest && !curve.retry && curve.readyAt <= 2.5){
         curve.early = true; fixing = { at: now, target: curve.target };
         sessionCmd(ACT_CANCEL, 0);
         toast('Carta skipped heat-up · taking a fresh reading…');
@@ -1332,7 +1402,7 @@ let ledRefreshT;
 function openSheet(id){ closeSheets(); $(id).classList.add('show'); $('scrim').classList.add('show'); }
 function closeSheets(){ document.querySelectorAll('.sheet').forEach(s=>s.classList.remove('show')); $('scrim').classList.remove('show'); }
 $('btnLights').onclick = () => { ledEditSlot = null; renderLights(); openSheet('lightsSheet'); };
-$('btnSettings').onclick = () => openSheet('settingsSheet');
+$('btnSettings').onclick = () => { openSheet('settingsSheet'); if (bridge && !guest && !demo) shareSend({action:'status'}); };
 $('scrim').onclick = closeSheets;
 document.querySelectorAll('[data-close]').forEach(b => b.onclick = closeSheets);
 
@@ -1433,9 +1503,62 @@ $('vibRange').oninput = e => $('vibVal').textContent = e.target.value;
 document.querySelectorAll('#unitSeg button').forEach(b => b.onclick = () => S && S.unit!==b.dataset.u && settingsCmd({unit:b.dataset.u}));
 $('btnPowerOff').onclick = () => { if (confirm('Power off the device?')) { wantConnected=false; settingsCmd({powerOff:true});
   if (bridge && !demo) setTimeout(() => bridge.send(JSON.stringify({type:'disconnect'})), 800); closeSheets(); } };
-$('btnDisconnect').onclick = () => { wantConnected=false; if (dev?.gatt?.connected) dev.gatt.disconnect(); if (bridge && !demo) bridge.send(JSON.stringify({type:'disconnect'}));
+$('btnDisconnect').onclick = () => { if (guest){ leaving = true; bridge.close(); guestNote('You left. Reload this page to rejoin.'); return; }
+  wantConnected=false; if (dev?.gatt?.connected) dev.gatt.disconnect(); if (bridge && !demo) bridge.send(JSON.stringify({type:'disconnect'}));
   demo?.stop(); demo=null; S=null; firstFrame=true; showConnect(); };
 document.addEventListener('visibilitychange', () => { if (!document.hidden && dev && wantConnected && !dev.gatt.connected) onDisconnect(); });
+
+/* ---------- Sharing (desktop bridge only): invite links through a Cloudflare tunnel ---------- */
+let SHARE = null, qrFor = null;
+const shareSend = m => bridge && bridge.send(JSON.stringify({type:'share', ...m}));
+const esc = t => String(t).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function renderShare(m){
+  SHARE = m;
+  $('shareBox').classList.remove('hidden');
+  $('tgShare').classList.toggle('on', m.running);
+  $('shareStatus').textContent = m.running
+    ? (m.url ? `Sharing is on. Send each guest their own link below (a new link can take a minute to start working). The address changes every time sharing is turned on, so send links again then.` : 'Starting the secure link…')
+    : (m.error || 'Off. Nobody outside this PC can reach your Carta.');
+  const exp = g => g.expired ? 'expired' : g.expires ? 'until ' + new Date(g.expires*1000).toLocaleDateString([], {month:'short', day:'numeric'}) : 'no expiry';
+  $('guestList').innerHTML = m.guests.map(g => `<div class="g" data-g="${g.id}">
+      <span class="dot${g.online ? ' on' : ''}" title="${g.online ? 'Online now' : 'Offline'}"></span>
+      <span class="nm">${esc(g.name)}<span class="note">${g.role==='watch' ? 'Watch only' : 'Can start sessions'} · ${exp(g)}</span></span>
+      ${g.link && !g.expired ? `<button class="ghost" data-a="copy">Copy link</button><button class="ghost" data-a="qr">QR</button>` : ''}
+      <button class="ghost" data-a="remove" aria-label="Remove ${esc(g.name)}">✕</button></div>`).join('');
+  if (qrFor && !m.guests.some(g => g.id===qrFor && g.link)) { qrFor = null; $('qrBox').classList.add('hidden'); }
+}
+function showQr(m){
+  if (m.id !== qrFor) return;
+  const g = SHARE.guests.find(x => x.id===m.id);
+  $('qrBox').innerHTML = `<div class="qr">${m.svg}</div><div class="note">Scan to join as ${esc(g ? g.name : 'guest')}</div>`;
+  $('qrBox').classList.remove('hidden');
+}
+async function copyText(t){
+  try { await navigator.clipboard.writeText(t); return true; } catch {}
+  const a = document.createElement('textarea'); a.value = t; document.body.appendChild(a); a.select();
+  const ok = document.execCommand('copy'); a.remove(); return ok;
+}
+$('tgShare').onclick = () => {
+  if (SHARE && SHARE.running){ if (confirm('Stop sharing? Guests are disconnected right away.')) shareSend({action:'stop'}); }
+  else { shareSend({action:'start'}); $('shareStatus').textContent = 'Starting the secure link…'; }
+};
+$('btnGAdd').onclick = () => {
+  const name = $('gName').value.trim();
+  if (!name){ $('gName').focus(); toast('Give the guest a name first'); return; }
+  shareSend({action:'add', name, role:$('gRole').value, days:+$('gDays').value});
+  $('gName').value = '';
+};
+$('gName').onkeydown = e => { if (e.key==='Enter') $('btnGAdd').click(); };
+$('guestList').onclick = async e => {
+  const b = e.target.closest('button[data-a]'); if (!b) return;
+  const id = b.closest('[data-g]').dataset.g, g = SHARE.guests.find(x => x.id===id); if (!g) return;
+  if (b.dataset.a==='copy') toast(await copyText(g.link) ? `Link for ${g.name} copied` : 'Couldn\'t copy the link');
+  else if (b.dataset.a==='qr'){
+    if (qrFor===id){ qrFor = null; $('qrBox').classList.add('hidden'); return; }
+    qrFor = id; shareSend({action:'qr', id});
+  }
+  else if (b.dataset.a==='remove' && confirm(`Remove ${g.name}? Their link stops working and they're disconnected.`)) shareSend({action:'remove', id});
+};
 
 /* ---------- Demo device: speaks the same byte protocol ---------- */
 class Demo{

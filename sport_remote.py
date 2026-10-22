@@ -4,27 +4,45 @@
 Talks to a Focus V CARTA Sport over Bluetooth (via BlueZ/bleak) and serves the
 Sport Remote web UI on http://localhost:8766, relaying frames over a WebSocket.
 This lets the UI run in any browser, including Firefox, which has no Web Bluetooth.
+
+Sharing: the host can open a Cloudflare quick tunnel to a second, guest-only port (8767).
+Guests need a personal invite link carrying a random 256-bit key; they can only start or
+cancel sessions (or just watch), never change settings, presets, lights or power.
 """
 import asyncio
 import json
 import os
+import re
+import secrets
+import shutil
 import signal
 import sys
+import time
 import webbrowser
 from pathlib import Path
 
 from aiohttp import web, WSMsgType
 from bleak import BleakClient, BleakScanner
 
-HOST, PORT = "127.0.0.1", 8766
+HOST, PORT, GUEST_PORT = "127.0.0.1", 8766, 8767
 SVC = "1011123e-8535-b5a0-7140-a304d2495cb7"
 NOTIFY = "1011123e-8535-b5a0-7140-a304d2495cb8"
 WRITE = "1011123e-8535-b5a0-7140-a304d2495cb9"
 # Device Information (180A), User Data (181C: the official app keeps serial + color code here), Battery (180F)
 INFO_CHARS = {"model": "2a24", "serial": "2a25", "hardware": "2a27", "firmware": "2a28",
               "manufacturer": "2a29", "userSerial": "2a8a", "colorCode": "2a90", "battery": "2a19"}
-IDLE_EXIT_SECONDS = 30  # quit once no browser tab has been open this long
+IDLE_EXIT_SECONDS = 30  # quit once no host window/tab has been open this long
 HERE = Path(__file__).resolve().parent
+CONFIG = Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config") / "sport-remote"
+GUESTS_FILE = CONFIG / "guests.json"
+CLOUDFLARED = shutil.which("cloudflared") or "/home/linuxbrew/.linuxbrew/bin/cloudflared"
+
+# What each guest role may send to the device, by command byte. Reads: 0xDD clock sync (makes the
+# device dump its counters) and 0xFA session-log read. 0xCC is the session command (set/start/cancel).
+GUEST_WRITES = {"watch": {0xDD, 0xFA}, "control": {0xDD, 0xFA, 0xCC}}
+FAIL_LIMIT, FAIL_WINDOW = 5, 15 * 60       # per address: 5 wrong keys -> locked out for 15 min
+GLOBAL_FAIL_LIMIT = 30                     # all addresses together, same window
+GUEST_MSGS_PER_SEC = 10
 
 
 def is_carta(d, ad):
@@ -42,25 +60,34 @@ def is_carta(d, ad):
 
 class Bridge:
     def __init__(self):
-        self.clients: set[web.WebSocketResponse] = set()
+        self.clients: dict[web.WebSocketResponse, dict] = {}   # ws -> {"role": host|control|watch, ...}
         self.client: BleakClient | None = None
         self.name = ""
-        self.want = False           # user wants a connection (drives auto-reconnect)
+        self.want = False           # someone wants a connection (drives auto-reconnect)
         self.write_no_resp = True
         self.task: asyncio.Task | None = None
         self.state = {"type": "status", "state": "disconnected"}
 
-    async def broadcast(self, msg):
-        if msg.get("type") == "status":
-            self.state = msg
+    async def send_to(self, targets, msg):
         dead = []
-        for ws in self.clients:
+        for ws in targets:
             try:
                 await ws.send_json(msg)
             except Exception:
                 dead.append(ws)
         for ws in dead:
-            self.clients.discard(ws)
+            self.clients.pop(ws, None)
+
+    async def broadcast(self, msg):
+        if msg.get("type") == "status":
+            self.state = msg
+        await self.send_to(list(self.clients), msg)
+
+    async def to_hosts(self, msg):
+        await self.send_to([ws for ws, c in self.clients.items() if c["role"] == "host"], msg)
+
+    def hosts(self):
+        return sum(c["role"] == "host" for c in self.clients.values())
 
     async def status(self, state, **extra):
         print(f"[bridge] {state} {extra.get('message', '')}".rstrip(), flush=True)
@@ -72,7 +99,7 @@ class Bridge:
         return await BleakScanner.find_device_by_filter(is_carta, timeout=8.0)
 
     async def connect_loop(self):
-        """Keep the Carta connected for as long as a browser tab wants it: wait for it to be
+        """Keep the Carta connected for as long as a window wants it: wait for it to be
         switched on, reconnect after it sleeps or drops, never give up on its own."""
         attempt = 0
         while self.want:
@@ -122,7 +149,7 @@ class Bridge:
             self.task.cancel()
             await self.status("disconnected")
 
-    async def info(self):
+    async def info(self, ws=None):
         """Read the standard GATT info characteristics (model, serial, firmware...)."""
         if not (self.client and self.client.is_connected):
             return
@@ -133,25 +160,219 @@ class Bridge:
                 out[key] = raw[0] if key == "battery" else raw.decode("utf-8", "replace").strip("\x00 ")
             except Exception:
                 pass  # not every unit exposes every characteristic
-        await self.broadcast({"type": "info", "data": out})
+        msg = {"type": "info", "data": out}
+        await (self.send_to([ws], msg) if ws else self.broadcast(msg))
 
-    async def write(self, data):
+    async def write(self, data, ws=None):
+        async def err(m):
+            await (self.send_to([ws], {"type": "error", "message": m}) if ws else self.broadcast({"type": "error", "message": m}))
         if not (self.client and self.client.is_connected):
-            await self.broadcast({"type": "error", "message": "Not connected"})
+            await err("Not connected")
             return
         try:
             await self.client.write_gatt_char(WRITE, bytes(data), response=not self.write_no_resp)
         except Exception as e:
-            await self.broadcast({"type": "error", "message": f"Write failed: {e}"})
+            await err(f"Write failed: {e}")
 
 
 bridge = Bridge()
 
 
+# ---------- Guests (invite links) ----------
+class Guests:
+    """Invites live in ~/.config/sport-remote/guests.json (readable only by you).
+    Each holds a random key; the link carries it after '#', so it never reaches a server log."""
+
+    def __init__(self):
+        try:
+            self.items = json.loads(GUESTS_FILE.read_text())["guests"]
+        except Exception:
+            self.items = {}
+        self.fails: dict[str, list[float]] = {}
+        self.all_fails: list[float] = []
+
+    def save(self):
+        CONFIG.mkdir(parents=True, exist_ok=True)
+        tmp = GUESTS_FILE.with_suffix(".tmp")
+        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, "w") as f:
+            json.dump({"guests": self.items}, f, indent=1)
+        os.replace(tmp, GUESTS_FILE)
+
+    def add(self, name, role, days):
+        gid = secrets.token_hex(4)
+        self.items[gid] = {"name": (name or "Guest").strip()[:24] or "Guest",
+                           "role": "watch" if role == "watch" else "control",
+                           "key": secrets.token_urlsafe(32),
+                           "created": int(time.time()),
+                           "expires": int(time.time() + days * 86400) if days else 0,
+                           "last": 0}
+        self.save()
+        return gid
+
+    def remove(self, gid):
+        if self.items.pop(gid, None):
+            self.save()
+
+    def valid(self, gid):
+        g = self.items.get(gid)
+        return bool(g) and (not g["expires"] or g["expires"] > time.time())
+
+    def check(self, key):
+        """Constant-time compare against every invite; returns the guest id or None."""
+        found = None
+        if isinstance(key, str) and 20 <= len(key) <= 100:
+            for gid, g in self.items.items():
+                if secrets.compare_digest(g["key"].encode(), key.encode()) and self.valid(gid):
+                    found = gid
+        return found
+
+    def _prune(self, now):
+        self.all_fails = [t for t in self.all_fails if now - t < FAIL_WINDOW]
+        for ip in list(self.fails):
+            self.fails[ip] = [t for t in self.fails[ip] if now - t < FAIL_WINDOW]
+            if not self.fails[ip]:
+                del self.fails[ip]
+
+    def locked(self, ip):
+        self._prune(time.time())
+        return len(self.fails.get(ip, [])) >= FAIL_LIMIT or len(self.all_fails) >= GLOBAL_FAIL_LIMIT
+
+    def fail(self, ip):
+        now = time.time()
+        self.fails.setdefault(ip, []).append(now)
+        self.all_fails.append(now)
+        print(f"[share] wrong invite key from {ip}", flush=True)
+
+
+guests = Guests()
+
+
+# ---------- Cloudflare quick tunnel ----------
+class Tunnel:
+    def __init__(self):
+        self.proc: asyncio.subprocess.Process | None = None
+        self.url = ""
+        self.error = ""
+
+    @property
+    def running(self):
+        return self.proc is not None and self.proc.returncode is None
+
+    async def start(self):
+        if self.running:
+            return
+        if not Path(CLOUDFLARED).exists():
+            self.error = "cloudflared isn't installed. Run: brew install cloudflared"
+            return
+        self.url, self.error = "", ""
+        # A config file would turn this into a named tunnel; point it at an empty one.
+        self.proc = await asyncio.create_subprocess_exec(
+            CLOUDFLARED, "tunnel", "--no-autoupdate", "--config", "/dev/null",
+            "--url", f"http://127.0.0.1:{GUEST_PORT}",
+            stdin=asyncio.subprocess.DEVNULL, stdout=asyncio.subprocess.DEVNULL,
+            stderr=asyncio.subprocess.PIPE)
+        asyncio.create_task(self.watch(self.proc))
+
+    async def watch(self, proc):
+        # The address is printed before Cloudflare can route to it (530 errors until then);
+        # only hand out links once a connection is registered.
+        url = ""
+        async for line in proc.stderr:
+            m = re.search(rb"https://[a-z0-9-]+\.trycloudflare\.com", line)
+            if m and not url:
+                url = m.group().decode()
+            if url and not self.url and b"Registered tunnel connection" in line:
+                self.url = url
+                print(f"[share] tunnel up at {self.url}", flush=True)
+                await push_share()
+        await proc.wait()
+        if self.proc is proc:
+            if not self.url:
+                self.error = "Couldn't reach Cloudflare. Check the internet connection and try again."
+            self.proc, self.url = None, ""
+            print("[share] tunnel closed", flush=True)
+            await push_share()
+            await kick_guests()
+
+    async def stop(self):
+        if self.running:
+            self.proc.terminate()
+            try:
+                await asyncio.wait_for(self.proc.wait(), 5)
+            except asyncio.TimeoutError:
+                self.proc.kill()
+
+
+tunnel = Tunnel()
+
+
+def share_state():
+    online = {c.get("id") for c in bridge.clients.values() if c["role"] != "host"}
+    return {"type": "share", "running": tunnel.running, "url": tunnel.url, "error": tunnel.error,
+            "guests": [{"id": gid, "name": g["name"], "role": g["role"], "expires": g["expires"],
+                        "expired": not guests.valid(gid), "online": gid in online,
+                        "link": f"{tunnel.url}/#k={g['key']}" if tunnel.url else ""}
+                       for gid, g in sorted(guests.items.items(), key=lambda kv: kv[1]["created"])]}
+
+
+async def push_share():
+    await bridge.to_hosts(share_state())
+
+
+async def kick_guests(gid=None):
+    for ws, c in list(bridge.clients.items()):
+        if c["role"] != "host" and (gid is None or c.get("id") == gid):
+            bridge.clients.pop(ws, None)
+            await ws.close(message=b"removed")
+
+
+async def handle_share(ws, m):
+    action = m.get("action")
+    if action == "start":
+        await tunnel.start()
+    elif action == "stop":
+        await tunnel.stop()
+        await kick_guests()
+    elif action == "add":
+        try:
+            days = max(0, min(int(m.get("days", 1)), 365))
+        except (TypeError, ValueError):
+            days = 1
+        guests.add(str(m.get("name", "")), m.get("role"), days)
+    elif action == "remove":
+        guests.remove(str(m.get("id")))
+        await kick_guests(str(m.get("id")))
+    elif action == "qr":
+        g = share_state()["guests"]
+        link = next((x["link"] for x in g if x["id"] == m.get("id")), "")
+        if link:
+            import io
+            import segno
+            buf = io.BytesIO()
+            segno.make(link, error="m").save(buf, kind="svg", scale=6, border=2, dark="#000", light="#fff", xmldecl=False)
+            await ws.send_json({"type": "qr", "id": m.get("id"), "svg": buf.getvalue().decode()})
+        return
+    await push_share()
+
+
+# ---------- Web ----------
+def local_only(request):
+    """The host port controls everything, so refuse other sites (a WebSocket isn't bound by CORS)
+    and DNS-rebinding tricks: only pages served from this bridge may talk to it."""
+    host = request.host.split(":")[0]
+    if host not in ("localhost", "127.0.0.1"):
+        return False
+    origin = request.headers.get("Origin")
+    return origin is None or origin in (f"http://localhost:{PORT}", f"http://127.0.0.1:{PORT}")
+
+
 async def ws_handler(request):
+    if not local_only(request):
+        raise web.HTTPForbidden()
     ws = web.WebSocketResponse(heartbeat=20)
     await ws.prepare(request)
-    bridge.clients.add(ws)
+    bridge.clients[ws] = {"role": "host"}
     await ws.send_json(bridge.state)
     async for msg in ws:
         if msg.type != WSMsgType.TEXT:
@@ -169,54 +390,144 @@ async def ws_handler(request):
             await bridge.info()
         elif t == "write" and isinstance(m.get("data"), list):
             await bridge.write([int(b) & 0xFF for b in m["data"]])
-    bridge.clients.discard(ws)
+        elif t == "share":
+            try:
+                await handle_share(ws, m)
+            except Exception as e:  # keep the host's connection alive whatever goes wrong here
+                print(f"[share] {m.get('action')} failed: {e!r}", flush=True)
+                await ws.send_json({"type": "error", "message": f"Sharing: {e}"})
+    bridge.clients.pop(ws, None)
     return ws
 
 
-async def index(_request):
-    return web.FileResponse(HERE / "index.html", headers={"Cache-Control": "no-store"})
+async def guest_ws(request):
+    """Guest socket (reached through the tunnel). The first message must be a valid invite key."""
+    ip = request.headers.get("Cf-Connecting-IP") or request.remote or "?"
+    ws = web.WebSocketResponse(heartbeat=20, max_msg_size=4096)
+    await ws.prepare(request)
+    if guests.locked(ip):
+        await ws.send_json({"type": "auth", "ok": False, "message": "Too many wrong attempts. Try again in 15 minutes."})
+        await ws.close()
+        return ws
+    try:
+        first = await ws.receive(timeout=10)
+        key = json.loads(first.data).get("key") if first.type == WSMsgType.TEXT else None
+    except Exception:
+        key = None
+    gid = guests.check(key)
+    if not gid:
+        guests.fail(ip)
+        await asyncio.sleep(1)
+        await ws.send_json({"type": "auth", "ok": False, "message": "This invite link isn't valid anymore. Ask for a new one."})
+        await ws.close()
+        return ws
+
+    g = guests.items[gid]
+    g["last"] = int(time.time())
+    guests.save()
+    bridge.clients[ws] = {"role": g["role"], "id": gid, "name": g["name"]}
+    print(f"[share] {g['name']} joined ({g['role']})", flush=True)
+    await ws.send_json({"type": "auth", "ok": True, "role": g["role"], "name": g["name"]})
+    await ws.send_json(bridge.state)
+    await push_share()
+    await bridge.to_hosts({"type": "guest", "event": "joined", "name": g["name"]})
+
+    stamps: list[float] = []
+    async for msg in ws:
+        if msg.type != WSMsgType.TEXT or ws not in bridge.clients:
+            continue
+        now = time.monotonic()
+        stamps = [t for t in stamps if now - t < 1] + [now]
+        if len(stamps) > GUEST_MSGS_PER_SEC or not guests.valid(gid):
+            continue
+        try:
+            m = json.loads(msg.data)
+        except ValueError:
+            continue
+        t = m.get("type")
+        if t == "connect":
+            await bridge.connect()
+        elif t == "info":
+            await bridge.info(ws)
+        elif t == "write" and isinstance(m.get("data"), list) and 0 < len(m["data"]) <= 32:
+            data = [int(b) & 0xFF for b in m["data"]]
+            if data[0] in GUEST_WRITES[g["role"]]:
+                await bridge.write(data, ws)
+            else:
+                await ws.send_json({"type": "error", "message": "Only the host can change that."})
+    if bridge.clients.pop(ws, None):
+        print(f"[share] {g['name']} left", flush=True)
+    await push_share()
+    return ws
 
 
-async def ping(_request):
-    return web.json_response({"bridge": True})
+async def index(request):
+    if request.app["host"] and not local_only(request):
+        raise web.HTTPForbidden()
+    return web.FileResponse(HERE / "index.html", headers={
+        "Cache-Control": "no-store", "Referrer-Policy": "no-referrer", "X-Frame-Options": "DENY"})
 
 
-async def idle_watchdog(app):
+async def ping(request):
+    return web.json_response({"bridge": True, "guest": not request.app["host"]})
+
+
+async def idle_watchdog(stop: asyncio.Event):
     idle = 0
     while True:
         await asyncio.sleep(5)
-        idle = 0 if bridge.clients else idle + 5
+        idle = 0 if bridge.hosts() else idle + 5
         if idle >= IDLE_EXIT_SECONDS:
-            print("[bridge] no open tabs, shutting down", flush=True)
-            await bridge.disconnect()
-            # GracefulExit raised inside a task is swallowed; SIGINT makes run_app shut down cleanly
-            os.kill(os.getpid(), signal.SIGINT)
+            print("[bridge] no open windows, shutting down", flush=True)
+            stop.set()
             return
 
 
-async def on_startup(app):
-    app["watchdog"] = asyncio.create_task(idle_watchdog(app))
+def make_app(host: bool):
+    app = web.Application()
+    app["host"] = host
+    app.router.add_get("/", index)
+    app.router.add_get("/bridge", ping)
+    app.router.add_get("/ws", ws_handler if host else guest_ws)
+    return app
+
+
+async def serve(open_browser: bool):
+    url = f"http://localhost:{PORT}/"
+    runners = []
+    for host, port in ((True, PORT), (False, GUEST_PORT)):
+        runner = web.AppRunner(make_app(host), access_log=None)
+        await runner.setup()
+        await web.TCPSite(runner, HOST, port).start()
+        runners.append(runner)
+    print(f"[bridge] Sport Remote running at {url}", flush=True)
+
+    stop = asyncio.Event()
+    loop = asyncio.get_running_loop()
+    for sig in (signal.SIGINT, signal.SIGTERM):
+        loop.add_signal_handler(sig, stop.set)
+    watchdog = asyncio.create_task(idle_watchdog(stop))
+    if open_browser:
+        loop.call_later(0.5, webbrowser.open, url)
+    await stop.wait()
+
+    watchdog.cancel()
+    await tunnel.stop()
+    await bridge.disconnect()
+    for ws in list(bridge.clients):
+        await ws.close()
+    for runner in runners:
+        await runner.cleanup()
 
 
 def main():
-    url = f"http://localhost:{PORT}/"
     # If a bridge is already running, just open another tab on it.
     import socket
     with socket.socket() as s:
         if s.connect_ex((HOST, PORT)) == 0:
-            webbrowser.open(url)
+            webbrowser.open(f"http://localhost:{PORT}/")
             return
-    app = web.Application()
-    app.router.add_get("/", index)
-    app.router.add_get("/bridge", ping)
-    app.router.add_get("/ws", ws_handler)
-    app.on_startup.append(on_startup)
-    if "--no-browser" not in sys.argv:
-        async def open_browser(_app):
-            asyncio.get_running_loop().call_later(0.5, webbrowser.open, url)
-        app.on_startup.append(open_browser)
-    print(f"[bridge] Sport Remote running at {url}", flush=True)
-    web.run_app(app, host=HOST, port=PORT, print=None)
+    asyncio.run(serve("--no-browser" not in sys.argv))
 
 
 if __name__ == "__main__":
