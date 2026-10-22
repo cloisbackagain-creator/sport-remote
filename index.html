@@ -833,6 +833,7 @@ let peState = null;       // {mode, slot, temp, dur}
 const pname = (m,i) => store.get(`pname.${m}.${i}`, '') || `P${i+1}`;
 // Preset colors as the Carta shows them (from the official app): 1 blue, 2 yellow, 3 green, 4 purple, 5 red
 const PCOL = [null, '#5AC8FA', '#FFCC00', '#34C759', '#AF52DE', '#FF2D55'];
+let lastStatusAt = 0;     // when the last status frame arrived
 let devPick = null;       // {mode, rank, at}: preset just changed with the button on the Carta
 let appPickAt = 0;        // when this app last changed the session settings
 // The highlighted preset: what's being edited here, else the slot the device reports
@@ -1411,6 +1412,7 @@ function onFrame(b){
   if (LED_IN[b[0]]){ if (Date.now() > ledPendingUntil || !LEDS[LED_IN[b[0]]]) decodeLed(b); renderLights(); return; }
   const s = decodeStatus(b);
   if (!s) return;
+  lastStatusAt = Date.now();
   const unitChanged = S && S.unit!==s.unit;
   // preset changed on the Carta itself (its V button), not by this app: follow it and point it out
   if (S && !firstFrame && Date.now()-appPickAt > 3000){
@@ -1569,8 +1571,19 @@ $('vibRange').onchange = e => {
 };
 $('vibRange').oninput = e => $('vibVal').textContent = e.target.value;
 document.querySelectorAll('#unitSeg button').forEach(b => b.onclick = () => S && S.unit!==b.dataset.u && settingsCmd({unit:b.dataset.u}));
-$('btnPowerOff').onclick = () => { if (confirm('Power off the device?')) { wantConnected=false; settingsCmd({powerOff:true});
-  if (bridge && !demo) setTimeout(() => bridge.send(JSON.stringify({type:'disconnect'})), 800); closeSheets(); } };
+// Same frame as the official app (brightness 8, or 2 with power saving). Don't drop the link
+// ourselves: the official app waits for the Carta to shut down and disconnect on its own.
+$('btnPowerOff').onclick = () => {
+  if (!S || !confirm('Power off the device?')) return;
+  wantConnected = false;
+  settingsCmd({powerOff:true, brightness: S.powerSave ? 2 : 8});
+  closeSheets(); toast('Powering off…');
+  const t0 = Date.now();
+  setTimeout(() => {
+    const still = demo ? false : bridge ? bridgeState==='connected' : !!(dev && dev.gatt && dev.gatt.connected);
+    if (still && lastStatusAt > t0 + 1000) toast('The Carta stayed on. Press its V button 5× to turn it off.');
+  }, 7000);
+};
 $('btnDisconnect').onclick = () => { if (guest){ leaving = true; bridge.close(); guestNote('You left. Reload this page to rejoin.'); return; }
   wantConnected=false; if (dev?.gatt?.connected) dev.gatt.disconnect(); if (bridge && !demo) bridge.send(JSON.stringify({type:'disconnect'}));
   demo?.stop(); demo=null; S=null; firstFrame=true; showConnect(); };
