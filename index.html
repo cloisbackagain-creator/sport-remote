@@ -619,7 +619,11 @@ function openBridge(asGuest){
     relayStop();
     setLink(asGuest ? 'Offline' : 'Bridge closed', false);
     if (asGuest){ if (!leaving) guestNote('The host stopped sharing or closed Sport Remote. Reload to try again.'); }
-    else toast('Desktop bridge stopped. Relaunch Sport Remote.');
+    else {
+      toast('Desktop bridge stopped. Reconnecting when it\'s back…');
+      // reload once the bridge is running again (e.g. after an update restarted it)
+      const wait = setInterval(() => fetch('/bridge', {cache:'no-store'}).then(r => r.ok && (clearInterval(wait), location.reload())).catch(() => {}), 2000);
+    }
   };
 }
 function onBridgeStatus(m){

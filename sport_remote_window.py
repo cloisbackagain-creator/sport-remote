@@ -38,6 +38,15 @@ class SportRemote(Gtk.Application):
         view.get_network_session().connect("download-started", self.on_download)
         view.load_uri(URL)
 
+        # A bare WebView has no browser shortcuts; add reload. Capture phase so the page can't swallow them.
+        keys = Gtk.ShortcutController()
+        keys.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
+        for trigger, fn in (("F5", view.reload), ("<Control>r", view.reload),
+                            ("<Control><Shift>r", view.reload_bypass_cache), ("<Shift>F5", view.reload_bypass_cache)):
+            keys.add_shortcut(Gtk.Shortcut.new(Gtk.ShortcutTrigger.parse_string(trigger),
+                                               Gtk.CallbackAction.new(lambda *_a, fn=fn: (fn(), True)[1])))
+        win.add_controller(keys)
+
         win.set_child(view)
         win.present()
 
