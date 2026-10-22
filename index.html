@@ -622,6 +622,7 @@ function onBridgeStatus(m){
   setLink(m.state==='connected' && m.via ? (viaMe ? `Via this ${DEV_KIND}` : `Via ${m.via}`) : (labels[m.state] || m.state), m.state==='connected');
   $('reclaimRow').classList.toggle('hidden', !(m.state==='connected' && m.via));
   if (m.via) $('viaName').textContent = m.via;
+  const prevState = bridgeState;
   bridgeState = m.state;
   const busy = ['scanning','connecting','waiting','reconnecting'].includes(m.state);
   // while the bridge is looking for the Carta, the button stops the search
@@ -641,6 +642,14 @@ function onBridgeStatus(m){
       ? `If the Carta is near you, connect it from this ${DEV_KIND} and the link runs through here for everyone.`
       : (DEV_KIND==='PC' ? 'To connect the Carta from this PC, open the link in Chrome, Edge or Opera.'
                          : `To connect the Carta from this ${DEV_KIND}, open the link in ${/iPhone|iPad|Macintosh/.test(navigator.userAgent) ? 'Bluefy or the Focus V V Browser' : 'Chrome'}.`);
+    // the host lost the Carta: bring guests to the screen with the hand-off button
+    if (m.state!=='connected' && !relayDev){
+      if (prevState==='connected' && canRelay && navigator.bluetooth){
+        toast(`The host lost the Carta. Near it? Tap "Connect from this ${DEV_KIND}".`);
+        if (navigator.vibrate) navigator.vibrate(200);
+      }
+      showConnect();
+    }
   }
   if (m.state==='connected'){ $('devName').textContent = m.name || 'CARTA SPORT'; showApp(); syncClock(); bridge.send(JSON.stringify({type:'info'})); autoHistory(guest ? 4000 : 2500); }
   if (m.state==='error') toast(m.message);
