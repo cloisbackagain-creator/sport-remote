@@ -35,6 +35,7 @@ WRITE = "1011123e-8535-b5a0-7140-a304d2495cb9"
 # Device Information (180A), User Data (181C: the official app keeps serial + color code here), Battery (180F)
 INFO_CHARS = {"model": "2a24", "serial": "2a25", "hardware": "2a27", "firmware": "2a28",
               "manufacturer": "2a29", "userSerial": "2a8a", "colorCode": "2a90", "battery": "2a19"}
+RELEASE_SECONDS = 5     # no host window this long: let go of the Carta and stop sharing (covers F5 reloads)
 IDLE_EXIT_SECONDS = 30  # quit once no host window/tab has been open this long
 HERE = Path(__file__).resolve().parent
 CONFIG = Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config") / "sport-remote"
@@ -532,8 +533,14 @@ async def ping(request):
 async def idle_watchdog(stop: asyncio.Event):
     idle = 0
     while True:
-        await asyncio.sleep(5)
-        idle = 0 if bridge.hosts() else idle + 5
+        await asyncio.sleep(1)
+        idle = 0 if bridge.hosts() else idle + 1
+        if idle == RELEASE_SECONDS and (bridge.want or bridge.relay or tunnel.running):
+            # the window is closed: stop holding the Carta so a phone can use it right away
+            print("[bridge] window closed, releasing the Carta", flush=True)
+            await tunnel.stop()
+            await kick_guests()
+            await bridge.disconnect()
         if idle >= IDLE_EXIT_SECONDS:
             print("[bridge] no open windows, shutting down", flush=True)
             stop.set()

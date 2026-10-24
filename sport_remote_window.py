@@ -47,6 +47,10 @@ class SportRemote(Gtk.Application):
                                                Gtk.CallbackAction.new(lambda *_a, fn=fn: (fn(), True)[1])))
         win.add_controller(keys)
 
+        # Closing the window quits the app (and with it, the page's link to the bridge),
+        # even if WebKit is still holding something open.
+        win.connect("close-request", lambda _w: (self.quit(), False)[1])
+
         win.set_child(view)
         win.present()
 
