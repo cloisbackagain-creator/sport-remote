@@ -48,6 +48,20 @@ GUEST_WRITES = {"watch": {0xDD, 0xFA}, "control": {0xDD, 0xFA, 0xCC}}
 FAIL_LIMIT, FAIL_WINDOW = 5, 15 * 60       # per address: 5 wrong keys -> locked out for 15 min
 GLOBAL_FAIL_LIMIT = 30                     # all addresses together, same window
 GUEST_MSGS_PER_SEC = 10
+MAX_GUEST_SOCKETS = 20                     # open guest connections (joined or still proving their key)
+# Sent with every page: only the app's own script may run, nothing loads from elsewhere,
+# and no other site may embed the page.
+SEC_HEADERS = {
+    "Content-Security-Policy": "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; "
+                               "img-src 'self' data:; connect-src 'self' ws: wss:; base-uri 'none'; "
+                               "form-action 'none'; frame-ancestors 'none'",
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
+    "Referrer-Policy": "no-referrer",
+    "Permissions-Policy": "camera=(), microphone=(), geolocation=(), payment=(), usb=()",
+    "Cache-Control": "no-store",
+}
+guest_sockets = 0
 
 
 def is_carta(d, ad):
@@ -443,6 +457,17 @@ async def ws_handler(request):
 
 async def guest_ws(request):
     """Guest socket (reached through the tunnel). The first message must be a valid invite key."""
+    global guest_sockets
+    if guest_sockets >= MAX_GUEST_SOCKETS:
+        raise web.HTTPServiceUnavailable()
+    guest_sockets += 1
+    try:
+        return await guest_session(request)
+    finally:
+        guest_sockets -= 1
+
+
+async def guest_session(request):
     ip = request.headers.get("Cf-Connecting-IP") or request.remote or "?"
     ws = web.WebSocketResponse(heartbeat=20, max_msg_size=4096)
     await ws.prepare(request)
@@ -455,6 +480,10 @@ async def guest_ws(request):
         key = json.loads(first.data).get("key") if first.type == WSMsgType.TEXT else None
     except Exception:
         key = None
+    if not isinstance(key, str):
+        # no key at all (page closed or reloaded before joining): not a guess, so no lockout
+        await ws.close()
+        return ws
     gid = guests.check(key)
     if not gid:
         guests.fail(ip)
@@ -498,7 +527,8 @@ async def guest_ws(request):
                 else:
                     kind = m.get("kind") if m.get("kind") in ("phone", "tablet", "PC") else "device"
                     print(f"[share] {g['name']}'s {kind} is carrying the Carta", flush=True)
-                    await bridge.relay_up(ws, g["name"], str(m.get("name", ""))[:32], kind)
+                    name = re.sub(r"[^\w .'-]", "", str(m.get("name", "")))[:32]   # plain text only
+                    await bridge.relay_up(ws, g["name"], name, kind)
             elif m.get("action") == "down" and bridge.relay is ws:
                 await bridge.relay_down()
         elif t == "connect":
@@ -519,11 +549,12 @@ async def guest_ws(request):
     return ws
 
 
-async def index(request):
-    if request.app["host"] and not local_only(request):
-        raise web.HTTPForbidden()
-    return web.FileResponse(HERE / "index.html", headers={
-        "Cache-Control": "no-store", "Referrer-Policy": "no-referrer", "X-Frame-Options": "DENY"})
+def page_file(name):
+    async def handler(request):
+        if request.app["host"] and not local_only(request):
+            raise web.HTTPForbidden()
+        return web.FileResponse(HERE / name, headers=SEC_HEADERS)
+    return handler
 
 
 async def ping(request):
@@ -550,7 +581,8 @@ async def idle_watchdog(stop: asyncio.Event):
 def make_app(host: bool):
     app = web.Application()
     app["host"] = host
-    app.router.add_get("/", index)
+    app.router.add_get("/", page_file("index.html"))
+    app.router.add_get("/app.js", page_file("app.js"))
     app.router.add_get("/bridge", ping)
     app.router.add_get("/ws", ws_handler if host else guest_ws)
     return app

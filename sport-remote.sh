@@ -8,8 +8,9 @@ cd "$(dirname "$(readlink -f "$0")")"
 if [ ! -x .venv/bin/python ]; then
   python3 -m venv .venv
 fi
-# bleak: Bluetooth, aiohttp: local web server, segno: QR codes for invite links
-.venv/bin/python -c 'import bleak, aiohttp, segno' 2>/dev/null || .venv/bin/pip install -q bleak aiohttp segno
+# bleak: Bluetooth, aiohttp: local web server, segno: QR codes for invite links.
+# Exact versions are pinned in requirements.txt so an unexpected release can't slip in.
+.venv/bin/python -c 'import bleak, aiohttp, segno' 2>/dev/null || .venv/bin/pip install -q -r requirements.txt
 
 if [ "$1" = "--browser" ]; then
   exec .venv/bin/python sport_remote.py

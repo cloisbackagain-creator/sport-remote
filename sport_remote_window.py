@@ -32,6 +32,7 @@ class SportRemote(Gtk.Application):
         view = WebKit.WebView()
         settings = view.get_settings()
         settings.set_enable_developer_extras("--debug" in sys.argv)
+        view.connect("decide-policy", self.on_policy)
         view.connect("permission-request", self.on_permission)
         view.connect("show-notification", self.on_notification)
         view.connect("load-failed", self.on_load_failed)
@@ -53,6 +54,18 @@ class SportRemote(Gtk.Application):
 
         win.set_child(view)
         win.present()
+
+    # This window only ever shows Sport Remote: refuse navigation to anything else, and popups.
+    def on_policy(self, _view, decision, kind):
+        if kind == WebKit.PolicyDecisionType.NEW_WINDOW_ACTION:
+            decision.ignore()
+            return True
+        if kind == WebKit.PolicyDecisionType.NAVIGATION_ACTION:
+            uri = decision.get_navigation_action().get_request().get_uri()
+            if not (uri.startswith(URL) or uri.startswith("blob:" + URL.rstrip("/"))):
+                decision.ignore()
+                return True
+        return False
 
     # The page asks for notification permission from its Settings toggle; allow it here.
     def on_permission(self, _view, request):
