@@ -183,6 +183,10 @@ body.guest .actions .row3{grid-template-columns:1fr 1fr}
 .set{display:flex;justify-content:space-between;align-items:center;padding:11px 0;border-top:1px solid var(--line);gap:12px}
 .set.col{flex-direction:column;align-items:stretch;gap:2px}
 .set.col>div{display:flex;justify-content:space-between}
+.set.col>div+div{margin-top:8px}
+.step{display:flex;align-items:center;gap:8px}
+.step button{width:34px;height:30px;padding:0;font-size:17px;flex:none}
+.step b{min-width:52px;text-align:center}
 .set.col>.glist,.set.col>#qrBox{display:block}
 .glist .g{display:flex;align-items:center;gap:6px;padding:8px 0;border-top:1px solid var(--line)}
 .glist .g:first-child{border-top:0}
@@ -420,6 +424,13 @@ body.guest .actions .row3{grid-template-columns:1fr 1fr}
   <div class="set hostOnly"><div><div>Preset lock</div><div class="note" style="text-align:left">Keeps the device on the current preset. Note: a single press of the V button then starts a session (normally it takes two).</div></div>
     <button class="toggle" id="tgLock" aria-label="Preset lock"></button></div>
   <div class="set hostOnly"><span>Power saving</span><button class="toggle" id="tgSave" aria-label="Power saving"></button></div>
+  <div class="set col hostOnly">
+    <div><span>Sleep after</span><span class="step"><button class="ghost" data-to="sleep" data-d="-1" aria-label="Sleep sooner">−</button><b class="num" id="sleepVal">--</b><button class="ghost" data-to="sleep" data-d="1" aria-label="Sleep later">+</button></span></div>
+    <div><span>Lights off after</span><span class="step"><button class="ghost" data-to="led" data-d="-1" aria-label="Lights off sooner">−</button><b class="num" id="ledVal">--</b><button class="ghost" data-to="led" data-d="1" aria-label="Lights off later">+</button></span></div>
+    <div class="note" id="toNote" style="text-align:left"></div>
+  </div>
+  <div class="set hostOnly"><div><div>Keep awake</div><div class="note" style="text-align:left">While this app is open, snooze the Carta before it falls asleep.</div></div>
+    <button class="toggle" id="tgAwake" aria-label="Keep awake"></button></div>
   <div class="set col hostOnly"><div><span>Vibration</span><b class="num" id="vibVal">--</b></div>
     <input id="vibRange" type="range" min="0" max="10" step="1"></div>
   <div class="set hostOnly"><span>Units</span>

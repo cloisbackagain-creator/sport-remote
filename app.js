@@ -446,6 +446,12 @@ function render(){
   $('setTemp').textContent = shown.temp;
   $('timeLine').textContent = heating ? `${fmtTime(S.remaining)} left` : fmtTime(+shown.dur);
   renderLastLine(heating);
+  renderTimeouts();
+  // Keep awake: like the official app's Snooze, re-send the current settings shortly before the
+  // Carta's sleep countdown (×2.5 s) runs out
+  if (keepAwake && !guest && !demo && S.remaining===0 && S.sleep>0 && S.sleep*2.5 <= 45 && Date.now()-lastSnooze > 20000){
+    lastSnooze = Date.now(); settingsCmd({brightness: S.powerSave ? 2 : 8});
+  }
   // progress: share of the session elapsed
   const total = (curve && !curve.done && curve.total) || active.dur || 1;
   const frac = warming ? S.temp/tgt : heating ? 1 - S.remaining/total : 0;   // heat-up, then time elapsed
@@ -746,7 +752,7 @@ function decodeExtra(b){
     return true;
   }
   if (b[0]===0xCE && b[1]===7 && b[6]===0xCE){ STATS.flowerOhms=u16(b,2); STATS.concOhms=u16(b,4); return true; }   // atomizer resistance (mΩ)
-  if (b[0]===0xD2 && b[1]===7 && b[6]===0xD2){ STATS.ledTimeout=u16(b,2); STATS.autoOff=u16(b,4); return true; }    // seconds
+  if (b[0]===0xD2 && b[1]===7 && b[6]===0xD2){ STATS.ledTimeout=u16(b,2); STATS.autoOff=u16(b,4); renderTimeouts(); return true; }    // seconds
   if (b[0]===0xC2 && b[1]===8 && b[7]===0xC2){ onRecal(b); return true; }
   // 0xFC: one session-log entry; 0xFF: empty slot
   if (b[0]===0xFC && b.length>=18 && b[17]===0xFC){
@@ -823,8 +829,17 @@ function renderHistory(){
   const conc = logs.filter(l=>l.mode==='concentrate'), fl = logs.filter(l=>l.mode==='flower');
   const fav = {}; logs.forEach(l => { const k = l.preset ? `P${l.preset} (${l.mode==='flower'?'flower':'conc.'})` : 'Custom'; fav[k]=(fav[k]||0)+1; });
   const favTop = Object.entries(fav).sort((a,b)=>b[1]-a[1])[0];
+  // day streaks: consecutive days with at least one session (from the loaded sessions)
+  const dayN = t => Math.floor((new Date(t).setHours(0,0,0,0) - midnight) / day);   // 0 today, -1 yesterday…
+  const active = new Set(logs.map(l => Math.round(dayN(l.when))));
+  let cur = 0; for (let d = active.has(0) ? 0 : -1; active.has(d); d--) cur++;
+  let best = 0, run = 0; [...active].sort((a,b)=>a-b).forEach((d,i,a) => { run = i && d===a[i-1]+1 ? run+1 : 1; best = Math.max(best, run); });
+  const span = Math.min(30, 1 - Math.round(dayN(logs[logs.length-1].when)));
+  const consistency = Math.round(100 * [...active].filter(d => d > -span).length / span);
   $('hSummary').innerHTML = [
     ['Loaded', `${logs.length} most recent`],
+    ['Day streak', `${cur} day${cur===1?'':'s'} · best ${best}`],
+    ['Consistency', `${consistency}% of the last ${span} day${span===1?'':'s'}`],
     conc.length && ['Avg concentrate', `${avg(conc.map(l=>l.temp))}°${conc[0].unit} · ${fmtTime(avg(conc.map(l=>l.dur)))}`],
     fl.length && ['Avg flower', `${avg(fl.map(l=>l.temp))}°${fl[0].unit} · ${fmtTime(avg(fl.map(l=>l.dur)))}`],
     ['Most used', favTop ? `${favTop[0]} · ${favTop[1]}×` : '--'],
@@ -1087,6 +1102,27 @@ $('swatches').addEventListener('input', e => {
 });
 // settings
 $('tgLock').onclick = () => S && settingsCmd({lock:!S.locked});
+/* Sleep / lights-off timeouts (0xD1, same layout the Carta reports in 0xD2): 1–30 min sleep,
+   lights off no later than sleep. Like the official app, locked while power saving is on or the
+   battery is at 20% or less. */
+function renderTimeouts(){
+  const has = STATS.autoOff != null && STATS.ledTimeout != null;
+  const min = v => v == null ? '--' : `${Math.round(v/60)} min`;
+  $('sleepVal').textContent = min(STATS.autoOff); $('ledVal').textContent = min(STATS.ledTimeout);
+  const why = !S || !has ? 'Reading from the Carta…' : S.powerSave ? 'Turn off power saving to change these.' : S.battery <= 20 ? 'Charge above 20% to change these.' : '';
+  document.querySelectorAll('[data-to]').forEach(b => b.disabled = !!why);
+  $('toNote').textContent = why;
+  $('tgAwake').classList.toggle('on', keepAwake);
+}
+document.querySelectorAll('[data-to]').forEach(b => b.onclick = () => {
+  let sl = STATS.autoOff, led = STATS.ledTimeout; const d = +b.dataset.d * 60;
+  if (b.dataset.to==='sleep'){ sl = Math.max(60, Math.min(1800, sl + d)); led = Math.min(led, sl); }
+  else led = Math.max(60, Math.min(sl, led + d));
+  STATS.autoOff = sl; STATS.ledTimeout = led; renderTimeouts();
+  send([0xD1, 7, hi(led), lo(led), hi(sl), lo(sl), 0xD1]);
+});
+let keepAwake = store.get('keepAwake', false), lastSnooze = 0;
+$('tgAwake').onclick = () => { keepAwake = !keepAwake; store.set('keepAwake', keepAwake); renderTimeouts(); };
 $('tgSave').onclick = () => { if (!S) return; const on = !S.powerSave;
   if (on && S.brightness > 2) store.set('brightness', S.brightness);
   settingsCmd({powerSave:on, brightness: on ? 2 : store.get('brightness', 8)}); };
