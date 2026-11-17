@@ -338,7 +338,7 @@ const hexRgb = h => [1,3,5].map(i=>parseInt(h.slice(i,i+2),16));
 function showApp(){ $('connectView').classList.add('hidden'); $('appView').classList.remove('hidden'); }
 function showConnect(){ $('appView').classList.add('hidden'); $('connectView').classList.remove('hidden'); closeSheets(); }
 function setLink(t,on){ $('linkTxt').textContent=t; $('linkDot').classList.toggle('on',on); }
-let toastT; function toast(m){ const t=$('toast'); t.textContent=m; t.classList.add('show'); clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove('show'),2600); }
+let toastT; function toast(m, ms=2600){ const t=$('toast'); t.textContent=m; t.classList.add('show'); clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove("show"),ms); }
 function setHTML(el, html){ if (el.dataset.html !== html){ el.innerHTML = html; el.dataset.html = html; } } // keep taps from landing on a node that was just replaced
 
 function renderControls(){
@@ -751,7 +751,10 @@ function decodeExtra(b){
     if (historyWaiting) requestHistory();
     return true;
   }
-  if (b[0]===0xCE && b[1]===7 && b[6]===0xCE){ STATS.flowerOhms=u16(b,2); STATS.concOhms=u16(b,4); return true; }   // atomizer resistance (mΩ)
+  if (b[0]===0xCE && b[1]===7 && b[6]===0xCE){ STATS.flowerOhms=u16(b,2); STATS.concOhms=u16(b,4);
+    if (recalProbe){ recalProbe=false; clearTimeout(recalT); recalDone(); renderStats();
+      toast("This Carta's firmware doesn't support recalibration (Focus V has removed it from their app too)", 6000); }
+    return true; }   // atomizer resistance (mΩ)
   if (b[0]===0xD2 && b[1]===7 && b[6]===0xD2){ STATS.ledTimeout=u16(b,2); STATS.autoOff=u16(b,4); renderTimeouts(); return true; }    // seconds
   if (b[0]===0xC2 && b[1]===8 && b[7]===0xC2){ onRecal(b); return true; }
   // 0xFC: one session-log entry; 0xFF: empty slot
@@ -924,8 +927,14 @@ function recalibrate(){
   $('btnRecal').disabled = true; $('btnRecal').textContent = 'Working…';
   send([0xC1,0x06,0x77,0,0,0xC1]);
   clearTimeout(recalT);
-  recalT = setTimeout(() => { $('btnRecal').disabled=false; $('btnRecal').textContent='Recalibrate'; toast('No response from the device. Try again.'); }, 8000);
+  // No 0xC2 answer: ask for the atomizer resistance (0xCD -> 0xCE) to tell "firmware ignores it" from "link is down"
+  recalT = setTimeout(() => {
+    recalProbe = true; send([0xCD,0x06,0xDD,0,0,0xCD]);
+    recalT = setTimeout(() => { recalProbe = false; recalDone(); toast('No response from the Carta. Check it is on and connected.'); }, 3000);
+  }, 8000);
 }
+let recalProbe = false;
+function recalDone(){ $('btnRecal').disabled=false; $('btnRecal').textContent='Recalibrate'; }
 function onRecal(b){
   STATS.flowerOhms = u16(b,3); STATS.concOhms = u16(b,5); renderStats();
   if ($('btnRecal').disabled){
