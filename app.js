@@ -739,7 +739,7 @@ $('tgAutoFix').onclick = () => { autoFix = !autoFix; store.set('autoFix', autoFi
 const STATS = {};   // counts, ohms, timeouts
 const INFO = {};    // model, firmware, serial...
 const LOGS = new Map();  // session log index -> entry
-let logWant = 0, logT = null, recalT = null;
+let logWant = 0, logT = null;
 const u16 = (b,i) => (b[i]<<8)|b[i+1];
 function decodeExtra(b){
   // 0xAA: session counters  flower, conc, then today/week/month for each
@@ -754,7 +754,6 @@ function decodeExtra(b){
   if (b[0]===0xCE && b[1]===7 && b[6]===0xCE){ STATS.flowerOhms=u16(b,2); STATS.concOhms=u16(b,4);
     return true; }   // atomizer resistance (mΩ)
   if (b[0]===0xD2 && b[1]===7 && b[6]===0xD2){ STATS.ledTimeout=u16(b,2); STATS.autoOff=u16(b,4); renderTimeouts(); return true; }    // seconds
-  if (b[0]===0xC2 && b[1]===8 && b[7]===0xC2){ onRecal(b); return true; }
   // 0xFC: one session-log entry; 0xFF: empty slot
   if (b[0]===0xFC && b.length>=18 && b[17]===0xFC){
     const k = b[6].toString(16).toUpperCase().padStart(2,'0');
@@ -917,30 +916,6 @@ function renderStats(){
   ].filter(([,v]) => has(v));
   $('devKv').innerHTML = rows.map(([k,v])=>`<span>${esc(k)}</span><span>${esc(v)}</span>`).join('');
 }
-// Recalibration: 0xC1 asks the device to re-measure the cold atomizer resistance; it answers 0xC2 [ok] [flower mΩ] [conc mΩ]
-function recalibrate(){
-  if (!S) return;
-  if (S.remaining>0){ toast('Cancel the session first'); return; }
-  if (!confirm('Recalibrate the atomizer?\n\nOnly do this when the atomizer is completely cool (off for 10+ minutes). Calibrating while warm makes readings worse.')) return;
-  $('btnRecal').disabled = true; $('btnRecal').textContent = 'Working…';
-  send([0xC1,0x06,0x77,0,0,0xC1]);
-  clearTimeout(recalT);
-  // No 0xC2 answer: if status frames kept arriving, the link is fine and the firmware just ignores 0xC1
-  recalT = setTimeout(() => {
-    recalDone();
-    if (Date.now() - lastStatusAt < 3000) toast("The Carta is connected but ignored the request. Its firmware likely no longer supports recalibration (Focus V removed it from their app too).", 7000);
-    else toast('No response from the Carta. Check it is on and connected.');
-  }, 8000);
-}
-function recalDone(){ $('btnRecal').disabled=false; $('btnRecal').textContent='Recalibrate'; }
-function onRecal(b){
-  STATS.flowerOhms = u16(b,3); STATS.concOhms = u16(b,5); renderStats();
-  if ($('btnRecal').disabled){
-    clearTimeout(recalT); $('btnRecal').disabled=false; $('btnRecal').textContent='Recalibrate';
-    toast(b[2]===1 ? `Recalibrated · ${S.atomizer==='flower'?(STATS.flowerOhms/1000).toFixed(3):(STATS.concOhms/1000).toFixed(3)} Ω` : 'Device did not accept the recalibration');
-  }
-}
-$('btnRecal').onclick = recalibrate;
 $('btnHistory').onclick = loadHistory;
 $('btnStats').onclick = () => { renderStats(); openSheet('statsSheet'); };
 const wideMQ = matchMedia('(min-width:960px) and (min-height:560px)');
@@ -1305,7 +1280,6 @@ class Demo{
       this.presets = this.presets || {};
       this.presets[b[0]===0x88?'flower':'conc'] = list.map(([t,d])=>[toF(t),d]);
     }
-    if (b[0]===0xC1) setTimeout(()=>onFrame(new Uint8Array([0xC2,8,1,2,0x7c,2,0x05,0xC2])), 1200);
     if (b[0]===0x11){
       if (b[3]!==s.unit){ const toC=b[3]===UNIT_C, cv=toC?f2c:c2f; s.fT=cv(s.fT); s.cT=cv(s.cT); s.temp=cv(s.temp); s.unit=b[3]; }
       s.lock=b[8]?1:0; s.vib=b[9]; s.save=b[10]; s.led=b[7]; s.bri=b[4];
