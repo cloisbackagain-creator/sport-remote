@@ -6,7 +6,10 @@ bridge (sport_remote.py) on http://localhost:8766, forwards the page's notificat
 desktop, and saves exported files (CSV, diagnostics) to ~/Downloads.
 """
 import os
+import socket
+import subprocess
 import sys
+import time
 
 import gi
 gi.require_version("Gtk", "4.0")
@@ -15,6 +18,25 @@ from gi.repository import Gio, GLib, Gtk, WebKit  # noqa: E402
 
 APP_ID = "app.sportremote.Window"
 URL = "http://localhost:8766/"
+HERE = os.path.dirname(os.path.realpath(__file__))
+
+
+def bridge_up():
+    try:
+        socket.create_connection(("127.0.0.1", 8766), timeout=0.3).close()
+        return True
+    except OSError:
+        return False
+
+
+def start_bridge():
+    """Start the bridge in the background (it quits by itself once no window is open)."""
+    py = os.path.join(HERE, ".venv", "bin", "python")
+    if not os.access(py, os.X_OK):
+        return
+    with open("/tmp/sport-remote-bridge.log", "ab") as log:
+        subprocess.Popen([py, os.path.join(HERE, "sport_remote.py"), "--no-browser"], cwd=HERE,
+                         stdin=subprocess.DEVNULL, stdout=log, stderr=log, start_new_session=True)
 
 
 class SportRemote(Gtk.Application):
@@ -87,14 +109,15 @@ class SportRemote(Gtk.Application):
             return True
         download.connect("decide-destination", decide)
 
-    # The bridge may still be starting: retry for a few seconds before showing an error.
+    # The bridge isn't answering (still starting, or it quit / crashed): start it if needed and
+    # keep retrying, so the window never gets stuck on an error page.
     def on_load_failed(self, view, _event, uri, _error):
-        tries = getattr(self, "_tries", 0)
-        if tries < 20:
-            self._tries = tries + 1
-            GLib.timeout_add(500, lambda: (view.load_uri(uri), False)[1])
-            return True
-        return False
+        now = time.monotonic()
+        if not bridge_up() and now - getattr(self, "_started", 0) > 5:
+            self._started = now
+            start_bridge()
+        GLib.timeout_add(700, lambda: (view.load_uri(uri), False)[1])
+        return True
 
 
 if __name__ == "__main__":
