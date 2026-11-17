@@ -591,10 +591,21 @@ def make_app(host: bool):
 async def serve(open_browser: bool):
     url = f"http://localhost:{PORT}/"
     runners = []
+    global GUEST_PORT
     for host, port in ((True, PORT), (False, GUEST_PORT)):
         runner = web.AppRunner(make_app(host), access_log=None)
         await runner.setup()
-        await web.TCPSite(runner, HOST, port).start()
+        site = web.TCPSite(runner, HOST, port)
+        try:
+            await site.start()
+        except OSError:
+            if host:
+                raise
+            # guest port is only reached through the tunnel, so any free local port works
+            site = web.TCPSite(runner, HOST, 0)
+            await site.start()
+            GUEST_PORT = site._server.sockets[0].getsockname()[1]
+            print(f"[bridge] port {port} busy, guests use {GUEST_PORT}", flush=True)
         runners.append(runner)
     print(f"[bridge] Sport Remote running at {url}", flush=True)
 
